@@ -6,21 +6,20 @@ use App\Models\DietPlanRequest;
 use App\Models\Dish;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxTokens;
-use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[Temperature(0.7)]
+// No temperature: Claude Opus 5.5 / Sonnet 5.5 reject sampling parameters.
 #[MaxTokens(12000)]
-#[Timeout(180)]
+#[Timeout(300)]
 class DietPlanner implements Agent, HasStructuredOutput
 {
     use Promptable;
 
-    public function __construct(public DietPlanRequest $request) {}
+    public function __construct(public DietPlanRequest $request, public int $newDishes = 6) {}
 
     public function instructions(): Stringable|string
     {
@@ -44,7 +43,10 @@ class DietPlanner implements Agent, HasStructuredOutput
         - Respect allergies and dislikes absolutely. Never include allergens.
         - Keep daily calories within ±5% of the target and hit the macro targets you state.
         - Use common, affordable foods. Give gram amounts where useful.
-        - When a meal matches a recipe from the site catalogue, put its slug into "recipe_slug", otherwise use an empty string.
+        - Use recipes from the site catalogue where they fit and put their slug into "recipe_slug".
+        - Also invent up to {$this->newDishes} NEW original dishes that are NOT in the catalogue (different names and concepts);
+          for them set "recipe_slug" to an empty string. The site will turn them into full recipes, so give each new dish
+          a specific, appetizing title and reuse the exact same title if it repeats during the week.
         - Never give medical diagnoses; add a short note recommending a doctor visit for chronic conditions, pregnancy or BMI < 18.5 / > 35.
 
         Site recipe catalogue (slug | name | category | nutrition per serving):

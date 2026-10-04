@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
 
 class DietPlanRequest extends Model
@@ -36,6 +37,14 @@ class DietPlanRequest extends Model
     public function preferredDiet(): BelongsTo
     {
         return $this->belongsTo(Diet::class, 'preferred_diet_id');
+    }
+
+    /**
+     * Dishes the plan's meals resolved to (pivot: meal_title, created).
+     */
+    public function dishes(): BelongsToMany
+    {
+        return $this->belongsToMany(Dish::class)->withPivot('meal_title', 'created');
     }
 
     public function bmi(): float

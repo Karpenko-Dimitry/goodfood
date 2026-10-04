@@ -99,6 +99,8 @@ class DishResource extends Resource
             Section::make('Фото')->columns(2)->schema([
                 FileUpload::make('image')->label('Загрузить')->image()->disk('public')->directory('dishes')->imageEditor(),
                 TextInput::make('image_url')->label('или внешний URL')->url()->helperText('Используется, если файл не загружен. На странице редактирования есть кнопка «Фото через AI».'),
+                Textarea::make('image_prompt')->label('Описание для AI-фото (EN)')->rows(2)->columnSpanFull()
+                    ->helperText('Заполняется автоматически у блюд, созданных ИИ.'),
             ]),
         ]);
     }
@@ -115,6 +117,9 @@ class DishResource extends Resource
                         ->orWhere('name->en', 'like', "%{$search}%")
                         ->orWhere('slug', 'like', "%{$search}%")),
                 TextColumn::make('category.name')->label('Категория')->badge(),
+                TextColumn::make('source')->label('Источник')->badge()
+                    ->formatStateUsing(fn (string $state) => ['ai' => '✨ AI', 'seed' => 'Демо', 'manual' => 'Вручную'][$state] ?? $state)
+                    ->color(fn (string $state) => $state === 'ai' ? 'primary' : 'gray'),
                 TextColumn::make('calories')->label('Ккал')->sortable(),
                 TextColumn::make('protein')->label('Б')->sortable(),
                 TextColumn::make('fat')->label('Ж')->sortable(),
@@ -123,6 +128,7 @@ class DishResource extends Resource
                 ToggleColumn::make('is_published')->label('Опубл.'),
             ])
             ->filters([
+                SelectFilter::make('source')->label('Источник')->options(['ai' => 'AI', 'seed' => 'Демо', 'manual' => 'Вручную']),
                 SelectFilter::make('dish_category_id')->label('Категория')->relationship('category', 'slug')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->name),
                 SelectFilter::make('diets')->label('Диета')->relationship('diets', 'slug')

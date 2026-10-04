@@ -16,6 +16,9 @@
                         / <a href="{{ route('dishes.index', ['category' => $dish->category->slug]) }}" class="hover:text-brand">{{ $dish->category->name }}</a>
                     @endif
                 </nav>
+                @if ($dish->isAiGenerated())
+                    <span class="chip mb-4">✨ {{ __('site.recipes.ai_badge') }}</span>
+                @endif
                 <h1 class="text-4xl leading-tight sm:text-6xl">{{ $dish->name }}</h1>
                 <p class="mt-5 text-lg text-muted">{{ $dish->excerpt }}</p>
 

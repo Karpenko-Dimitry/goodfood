@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
-use App\Ai\Agents\DietPlanner;
 use App\Models\DietPlanRequest;
+use App\Models\Dish;
+use App\Services\Ai\DishIdea;
+use App\Services\Ai\NutritionAi;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -14,21 +16,40 @@ class GenerateDietPlan implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 240;
+    public int $timeout = 360;
 
     public function __construct(public DietPlanRequest $planRequest) {}
 
-    public function handle(): void
+    public function handle(NutritionAi $ai): void
     {
-        $agent = new DietPlanner($this->planRequest);
+        $plan = $this->planRequest;
+        $result = $ai->mealPlan($plan);
 
-        $response = $agent->prompt($agent->brief(), model: config('services.openai.diet_model'));
+        $meals = collect($result['days'] ?? [])->flatMap(fn ($day) => $day['meals'] ?? []);
+        $known = Dish::whereIn('slug', $meals->pluck('recipe_slug')->filter())->pluck('id', 'slug');
 
-        $this->planRequest->update([
+        // Catalogue dishes used by the plan.
+        $plan->dishes()->sync($meals
+            ->filter(fn ($meal) => isset($known[$meal['recipe_slug'] ?? '']))
+            ->mapWithKeys(fn ($meal) => [$known[$meal['recipe_slug']] => ['meal_title' => $meal['title'], 'created' => false]])
+            ->all());
+
+        // Meals without a catalogue recipe become new dishes (one per distinct title).
+        $ideas = $meals
+            ->reject(fn ($meal) => isset($known[$meal['recipe_slug'] ?? '']))
+            ->unique(fn ($meal) => Dish::normalizeTitle($meal['title']))
+            ->take(config('services.ai.new_dishes_per_plan'))
+            ->map(fn ($meal) => DishIdea::fromMeal($meal, $plan))
+            ->values();
+
+        $plan->update([
             'status' => 'completed',
-            'result' => $response->toArray(),
+            'result' => $result,
             'error' => null,
+            'dishes_pending' => $ideas->count(),
         ]);
+
+        $ideas->each(fn (DishIdea $idea) => CreateAiDish::dispatch($idea, $plan));
     }
 
     public function failed(Throwable $e): void

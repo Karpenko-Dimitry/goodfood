@@ -35,9 +35,18 @@ return [
         ],
     ],
 
-    'openai' => [
-        'diet_model' => env('AI_DIET_MODEL', 'gpt-4.1-mini'),
-        'image_model' => env('AI_IMAGE_MODEL', 'gpt-image-1'),
+    /*
+    | App\Services\Ai\NutritionAi. Provider/model null = defaults from config/ai.php.
+    */
+    'ai' => [
+        'text_provider' => env('AI_TEXT_PROVIDER'),
+        'plan_model' => env('AI_DIET_MODEL'),
+        'dish_model' => env('AI_DISH_MODEL', env('AI_DIET_MODEL')),
+        'image_provider' => env('AI_IMAGE_PROVIDER'),
+        'image_model' => env('AI_IMAGE_MODEL'),
+        'images_enabled' => (bool) env('AI_IMAGES_ENABLED', true),
+        'new_dishes_per_plan' => (int) env('AI_NEW_DISHES_PER_PLAN', 6),
+        'publish_new_dishes' => (bool) env('AI_PUBLISH_NEW_DISHES', true),
     ],
 
 ];

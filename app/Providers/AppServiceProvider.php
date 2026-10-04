@@ -11,7 +11,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Services\Ai\NutritionAi::class, fn () => new \App\Services\Ai\NutritionAi(config('services.ai')));
     }
 
     /**

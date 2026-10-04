@@ -30,6 +30,14 @@
             @else
                 @php($r = $plan->result)
 
+                @if ($plan->dishes_pending > 0)
+                    <div data-plan-status="{{ route('plan.status', $plan) }}" data-pending="{{ $plan->dishes_pending }}"
+                         class="mb-8 flex items-center gap-3 border-l-4 border-brand bg-brand-light p-4 text-sm">
+                        <span class="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white border-t-brand"></span>
+                        {{ __('site.plan.dishes_pending', ['count' => $plan->dishes_pending]) }}
+                    </div>
+                @endif
+
                 <div class="grid gap-10 lg:grid-cols-[1fr_340px]">
                     <div>
                         <p class="text-lg leading-relaxed">{{ $r['summary'] ?? '' }}</p>
@@ -49,7 +57,7 @@
                                     </summary>
                                     <div class="grid gap-px bg-line md:grid-cols-2">
                                         @foreach ($day['meals'] as $meal)
-                                            @php($recipe = $recipes[$meal['recipe_slug'] ?? ''] ?? null)
+                                            @php($recipe = $recipes[$meal['recipe_slug'] ?? ''] ?? $planDishes[\App\Models\Dish::normalizeTitle($meal['title'])] ?? null)
                                             <div class="flex gap-4 bg-white p-6">
                                                 @if ($recipe)
                                                     <x-image :src="$recipe->imageUrl()" :alt="$recipe->name" class="h-20 w-20 shrink-0" />
@@ -65,7 +73,17 @@
                                                         {{ __('site.macros.c') }} {{ $meal['carbs'] }}
                                                     </p>
                                                     @if ($recipe)
-                                                        <a href="{{ route('dishes.show', $recipe) }}" class="mt-2 inline-block text-xs font-medium uppercase text-brand hover:underline">{{ __('site.plan.open_recipe') }} →</a>
+                                                        <a href="{{ route('dishes.show', $recipe) }}" class="mt-2 inline-flex items-center gap-2 text-xs font-medium uppercase text-brand hover:underline">
+                                                            {{ __('site.plan.open_recipe') }} →
+                                                            @if ($recipe->isAiGenerated())
+                                                                <span class="chip normal-case">✨ {{ __('site.plan.new_recipe') }}</span>
+                                                            @endif
+                                                        </a>
+                                                    @elseif (empty($meal['recipe_slug']) && $plan->dishes_pending > 0)
+                                                        <p class="mt-2 flex items-center gap-2 text-xs text-muted">
+                                                            <span class="h-3 w-3 animate-spin rounded-full border-2 border-brand-light border-t-brand"></span>
+                                                            {{ __('site.plan.recipe_cooking') }}
+                                                        </p>
                                                     @endif
                                                 </div>
                                             </div>

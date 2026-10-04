@@ -67,6 +67,12 @@ class DietPlanRequestResource extends Resource
                     ->state(fn (DietPlanRequest $record) => $record->result ? "{$record->result['protein_g']} / {$record->result['fat_g']} / {$record->result['carbs_g']}" : null),
                 TextEntry::make('result.summary')->label('Резюме')->placeholder('—')->columnSpanFull(),
                 TextEntry::make('result.warning')->label('Предупреждение')->placeholder('—')->columnSpanFull(),
+                TextEntry::make('dishes_pending')->label('Рецептов в работе')->badge()->color('warning')
+                    ->visible(fn (DietPlanRequest $record) => $record->dishes_pending > 0),
+                TextEntry::make('created_dishes')->label('Новые блюда, созданные для плана')->columnSpanFull()->placeholder('—')->html()
+                    ->state(fn (DietPlanRequest $record) => $record->dishes()->wherePivot('created', true)->get()
+                        ->map(fn ($dish) => '<a class="text-primary-600 underline" href="'.\App\Filament\Resources\Dishes\DishResource::getUrl('edit', ['record' => $dish]).'">'.e($dish->name).'</a>')
+                        ->implode(', ') ?: null),
                 TextEntry::make('error')->label('Ошибка')->color('danger')->placeholder('—')->columnSpanFull(),
                 TextEntry::make('result_json')->label('JSON-ответ модели')->columnSpanFull()
                     ->state(fn (DietPlanRequest $record) => $record->result ? json_encode($record->result, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : null)

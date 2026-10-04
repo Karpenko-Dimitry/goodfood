@@ -3,6 +3,11 @@
 namespace Tests\Feature;
 
 use App\Ai\Agents\DietPlanner;
+use App\Ai\Agents\DishChef;
+use App\Jobs\CreateAiDish;
+use App\Services\Ai\DishIdea;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Ai\Image;
 use App\Models\Diet;
 use App\Models\DietPlanRequest;
 use App\Models\Dish;
@@ -74,9 +79,12 @@ class SiteTest extends TestCase
         $this->get('/en')->assertSee('Dishes');
     }
 
-    public function test_ai_plan_is_generated_with_structured_output(): void
+    public function test_ai_plan_creates_new_dishes_with_recipes_and_photos(): void
     {
+        Storage::fake('public');
+        Image::fake();
         DietPlanner::fake([$this->fakePlan()]);
+        DishChef::fake(fn (string $prompt) => $this->fakeRecipe(str($prompt)->after('Dish title: ')->before("\n")->toString()));
 
         $response = $this->post('/en/ai-plan', [
             'gender' => 'female', 'age' => 32, 'height_cm' => 168, 'weight_kg' => 72,
@@ -88,16 +96,66 @@ class SiteTest extends TestCase
         $plan = DietPlanRequest::sole();
         $response->assertRedirect("/en/ai-plan/{$plan->uuid}");
 
-        // QUEUE_CONNECTION=sync in phpunit.xml, so the job has already run.
-        $this->assertSame('completed', $plan->fresh()->status);
+        // QUEUE_CONNECTION=sync in phpunit.xml, so every job has already run.
+        $plan->refresh();
+        $this->assertSame('completed', $plan->status);
+        $this->assertSame(0, $plan->dishes_pending);
 
         DietPlanner::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'peanuts') && str_contains($prompt->prompt, 'Mediterranean'));
+        DishChef::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'peanuts'));
+
+        // 3 distinct meals without a catalogue recipe -> 3 new dishes, the catalogue dish is only linked.
+        $created = Dish::where('source', 'ai')->get();
+        $this->assertCount(3, $created);
+        $this->assertSame(3, $plan->dishes()->wherePivot('created', true)->count());
+        $this->assertTrue($plan->dishes()->where('slug', 'salmon-quinoa-bowl')->exists());
+
+        $dish = $created->firstWhere('slug', 'ai-oats');
+        $this->assertSame('Овсянка AI', $dish->getTranslation('name', 'ru'));
+        $this->assertSame("Oats — 60 g\nMilk — 200 ml", $dish->getTranslation('ingredients', 'en'));
+        $this->assertTrue($dish->diets()->where('slug', 'mediterranean')->exists());
+        Storage::disk('public')->assertExists($dish->image);
+        Image::assertGenerated(fn ($prompt) => str_contains($prompt->prompt, 'A bowl of Oats'));
 
         $this->get("/en/ai-plan/{$plan->uuid}")
             ->assertOk()
             ->assertSee('Monday')
-            ->assertSee('Salmon &amp; Quinoa Bowl', false)   // linked site recipe
+            ->assertSee('Salmon &amp; Quinoa Bowl', false)
+            ->assertSee(route('dishes.show', ['locale' => 'en', 'dish' => 'ai-oats']))
             ->assertSee('1650');
+
+        $this->get('/ru/recipes/ai-oats')->assertOk()->assertSee('Овсянка AI')->assertSee('Рецепт создан ИИ');
+    }
+
+    public function test_ai_failures_do_not_break_the_plan(): void
+    {
+        $this->withoutExceptionHandling();
+        Image::fake(fn () => throw new \RuntimeException('You have not started a billing plan yet'));
+        DietPlanner::fake([$this->fakePlan()]);
+        DishChef::fake(fn (string $prompt) => str_contains($prompt, 'Dish title: Yoghurt')
+            ? throw new \RuntimeException('Overloaded')
+            : $this->fakeRecipe(str($prompt)->after('Dish title: ')->before("\n")->toString()));
+
+        $this->post('/en/ai-plan', [
+            'gender' => 'male', 'age' => 40, 'height_cm' => 180, 'weight_kg' => 90,
+            'activity' => 'light', 'goal' => 'lose', 'meals_per_day' => 4,
+        ])->assertRedirect();
+
+        $plan = DietPlanRequest::sole();
+        $this->assertSame('completed', $plan->status);
+        $this->assertSame(0, $plan->dishes_pending);                 // counter released for the failed recipe too
+        $this->assertSame(2, Dish::where('source', 'ai')->count());   // 2 of 3 recipes saved
+        $this->assertNull(Dish::where('source', 'ai')->first()->image); // photo failed -> placeholder
+    }
+
+    public function test_existing_dish_is_not_generated_twice(): void
+    {
+        DishChef::fake()->preventStrayPrompts();
+
+        CreateAiDish::dispatch(new DishIdea('  baked SALMON with asparagus! '));
+
+        DishChef::assertNotPrompted(fn () => true);
+        $this->assertSame(0, Dish::where('source', 'ai')->count());
     }
 
     public function test_ai_plan_validation(): void
@@ -141,6 +199,24 @@ class SiteTest extends TestCase
         $this->assertSame('Salmon Power Bowl', $dish->getTranslation('name', 'en'));
         $this->assertSame('Боул с лососем и киноа', $dish->getTranslation('name', 'ru'));
         $this->assertArrayNotHasKey('uk', $dish->getTranslations('excerpt'));   // empty locale dropped -> falls back
+    }
+
+    private function fakeRecipe(string $title): array
+    {
+        $tr = fn (string $text) => ['ru' => "{$text} AI", 'en' => $text, 'uk' => "{$text} UA"];
+        $map = ['Oats' => 'Овсянка'];
+
+        return [
+            'name' => ['ru' => ($map[$title] ?? $title).' AI', 'en' => "AI {$title}", 'uk' => "{$title} UA"],
+            'excerpt' => $tr('Tasty'),
+            'ingredients' => ['ru' => ['Овсянка — 60 г'], 'en' => ['Oats — 60 g', 'Milk — 200 ml'], 'uk' => ['Вівсянка — 60 г']],
+            'instructions' => ['ru' => ['Сварить'], 'en' => ['Cook', 'Serve'], 'uk' => ['Зварити']],
+            'category' => 'breakfast',
+            'diets' => ['mediterranean', 'unknown-diet'],
+            'calories' => 400, 'protein' => 20, 'fat' => 10, 'carbs' => 55,
+            'prep_minutes' => 5, 'cook_minutes' => 10, 'servings' => 1,
+            'image_prompt' => "A bowl of {$title}",
+        ];
     }
 
     private function fakePlan(): array

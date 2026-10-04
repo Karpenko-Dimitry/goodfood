@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Str;
 use Spatie\Translatable\HasTranslations;
 
 class Dish extends Model
@@ -47,6 +48,31 @@ class Dish extends Model
     public function scopePublished(Builder $query): void
     {
         $query->where('is_published', true);
+    }
+
+    public function isAiGenerated(): bool
+    {
+        return $this->source === 'ai';
+    }
+
+    /**
+     * Comparable form of a dish title: lowercase, no punctuation, single spaces.
+     */
+    public static function normalizeTitle(string $title): string
+    {
+        return Str::of($title)->lower()->replaceMatches('/[^\p{L}\p{N}]+/u', ' ')->squish()->toString();
+    }
+
+    /**
+     * A dish whose name in any locale matches the given title.
+     */
+    public static function findByTitle(string $title): ?self
+    {
+        $needle = static::normalizeTitle($title);
+
+        return static::query()->get(['id', 'slug', 'name'])
+            ->first(fn (self $dish) => collect($dish->getTranslations('name'))
+                ->contains(fn ($name) => static::normalizeTitle((string) $name) === $needle));
     }
 
     public function totalMinutes(): int

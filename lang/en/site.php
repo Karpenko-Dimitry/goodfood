@@ -94,6 +94,7 @@ return [
         'others_title' => 'Other <span>diets</span>',
     ],
     'recipes' => [
+        'ai_badge' => 'AI-created recipe',
         'subtitle' => 'Dishes with photos, recipes and macros per serving',
         'all' => 'All',
         'search' => 'Search',
@@ -115,6 +116,9 @@ return [
         'related' => 'Related recipes',
     ],
     'plan' => [
+        'new_recipe' => 'new recipe',
+        'recipe_cooking' => 'Recipe is being created…',
+        'dishes_pending' => 'The AI chef is creating new recipes for your plan (:count left). The page will refresh automatically.',
         'title' => 'Personal AI Diet',
         'subtitle' => 'A 7-day menu tailored to your goals with OpenAI',
         'about_you' => 'About you',

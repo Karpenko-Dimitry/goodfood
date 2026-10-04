@@ -59,11 +59,17 @@ class DietPlanController extends Controller
         return view('plan.show', [
             'plan' => $planRequest,
             'recipes' => Dish::published()->whereIn('slug', $slugs)->get()->keyBy('slug'),
+            // Dishes generated for (or matched to) this plan, keyed by normalized meal title.
+            'planDishes' => $planRequest->dishes()->published()->get()
+                ->keyBy(fn (Dish $dish) => Dish::normalizeTitle($dish->pivot->meal_title)),
         ]);
     }
 
     public function status(DietPlanRequest $planRequest): JsonResponse
     {
-        return response()->json(['status' => $planRequest->status]);
+        return response()->json([
+            'status' => $planRequest->status,
+            'dishes_pending' => $planRequest->dishes_pending,
+        ]);
     }
 }

@@ -28,7 +28,10 @@ const pending = document.querySelector('[data-plan-status]');
 if (pending) {
     const poll = async () => {
         const { data } = await window.axios.get(pending.dataset.planStatus);
-        if (data.status !== 'pending') return window.location.reload();
+        // Reload when the plan is ready, or when another generated recipe has been saved.
+        if (data.status !== 'pending' && String(data.dishes_pending) !== (pending.dataset.pending ?? '')) {
+            return window.location.reload();
+        }
         setTimeout(poll, 4000);
     };
     setTimeout(poll, 4000);

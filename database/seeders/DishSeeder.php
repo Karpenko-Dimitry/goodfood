@@ -40,6 +40,7 @@ class DishSeeder extends Seeder
                 'cook_minutes' => $data['cook'],
                 'servings' => $data['servings'],
                 'is_featured' => $data['featured'],
+                'source' => 'seed',
             ]);
 
             $dish->diets()->sync($diets->only($data['diets'])->values());

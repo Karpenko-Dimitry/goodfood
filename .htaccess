@@ -1,0 +1,8 @@
+<IfModule mod_rewrite.c>
+    DirectoryIndex /public/index.php
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILE} !-f
+    RewriteCond %{REQUEST_FILE} !-l
+    RewriteCond %{REQUEST_URI} !^/public [NC]
+    RewriteRule ^(.+)$ /public/$1 [L]
+</IfModule>

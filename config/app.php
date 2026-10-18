@@ -78,18 +78,24 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'ru'),
+    'locale' => env('APP_LOCALE', 'uk'),
 
     /*
     | Locales available on the public site and in the admin translatable fields.
     */
     'locales' => [
+        // The first locale is the main content language (required in the admin forms).
+        'uk' => 'Українська',
         'ru' => 'Русский',
         'en' => 'English',
-        'uk' => 'Українська',
     ],
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+
+    /*
+    | Language of the admin panel UI (labels are written in Russian).
+    */
+    'admin_locale' => env('APP_ADMIN_LOCALE', 'ru'),
 
     /*
     | Swap the core translator for spatie/laravel-translation-loader so that

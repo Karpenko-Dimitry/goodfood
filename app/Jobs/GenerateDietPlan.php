@@ -34,12 +34,10 @@ class GenerateDietPlan implements ShouldQueue
             ->mapWithKeys(fn ($meal) => [$known[$meal['recipe_slug']] => ['meal_title' => $meal['title'], 'created' => false]])
             ->all());
 
-        // Meals without a catalogue recipe become new dishes (one per distinct title).
-        $ideas = $meals
-            ->reject(fn ($meal) => isset($known[$meal['recipe_slug'] ?? '']))
-            ->unique(fn ($meal) => Dish::normalizeTitle($meal['title']))
-            ->take(config('services.ai.new_dishes_per_plan'))
-            ->map(fn ($meal) => DishIdea::fromMeal($meal, $plan))
+        // Every plan brings new dishes into the catalogue ("new_dishes" has a fixed size in the schema).
+        $ideas = collect($result['new_dishes'] ?? [])
+            ->unique(fn ($dish) => Dish::normalizeTitle($dish['title']))
+            ->map(fn ($dish) => DishIdea::fromMeal($dish, $plan))
             ->values();
 
         $plan->update([

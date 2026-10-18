@@ -21,7 +21,7 @@ class GenerateDishImage implements ShouldQueue
 
     public function handle(NutritionAi $ai): void
     {
-        $subject = $this->dish->image_prompt ?: $this->dish->getTranslation('name', 'en');
+        $subject = $this->dish->image_prompt ?: $this->dish->translate('en', true)?->name;
 
         try {
             $this->dish->update(['image' => $ai->dishImage($subject)]);

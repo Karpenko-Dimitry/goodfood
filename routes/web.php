@@ -5,14 +5,9 @@ use App\Http\Controllers\DietPlanController;
 use App\Http\Controllers\DishController;
 use App\Http\Controllers\PageController;
 use App\Http\Middleware\SetLocale;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function (Request $request) {
-    $locale = $request->getPreferredLanguage(array_keys(config('app.locales'))) ?? config('app.locale');
-
-    return redirect()->route('home', ['locale' => $locale]);
-});
+Route::get('/', fn () => redirect()->route('home', ['locale' => config('app.locale')]));
 
 Route::prefix('{locale}')
     ->where(['locale' => implode('|', array_keys(config('app.locales')))])

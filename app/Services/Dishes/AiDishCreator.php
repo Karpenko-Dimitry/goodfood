@@ -8,37 +8,62 @@ use App\Models\Dish;
 use App\Models\DishCategory;
 use App\Services\Ai\DishIdea;
 use App\Services\Ai\NutritionAi;
+use App\Support\Translations;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
- * Turns a DishIdea into a stored Dish: skips duplicates, asks NutritionAi for the recipe,
- * saves it in every locale and queues the photo.
+ * Turns a DishIdea into a NEW stored Dish: asks NutritionAi for the recipe (retrying while the
+ * name is taken), saves it in every locale and queues the photo.
  */
 class AiDishCreator
 {
     public function __construct(private NutritionAi $ai) {}
 
+    private const ATTEMPTS = 3;
+
     /**
-     * @return array{0: Dish, 1: bool} the dish and whether it was newly created
+     * Always stores a NEW dish. If the idea or the generated name already exists,
+     * the model is asked again with the taken names until the dish is unique.
+     *
+     * @throws DuplicateDishException when no unique dish was produced after several attempts
      */
-    public function create(DishIdea $idea): array
+    public function create(DishIdea $idea): Dish
     {
-        if ($existing = Dish::findByTitle($idea->title)) {
-            return [$existing, false];
-        }
+        $taken = Dish::findByTitle($idea->title) ? [$idea->title] : [];
 
-        $recipe = $this->ai->dishRecipe($idea);
+        for ($attempt = 1; $attempt <= self::ATTEMPTS; $attempt++) {
+            $recipe = $this->ai->dishRecipe($idea, $taken);
 
-        // The model may still return a name that already exists in another locale.
-        foreach ($recipe['name'] as $name) {
-            if ($existing = Dish::findByTitle($name)) {
-                return [$existing, false];
+            // Final check + insert under a lock so parallel jobs can't store the same dish twice.
+            $dish = Cache::lock('ai-dish-creator', 30)->block(30, fn () => $this->hasTakenName($recipe)
+                ? null
+                : $this->store($recipe));
+
+            if ($dish) {
+                if ($this->ai->imagesEnabled()) {
+                    GenerateDishImage::dispatch($dish);
+                }
+
+                return $dish;
             }
+
+            $taken = array_values(array_unique([...$taken, ...array_values($recipe['name'])]));
         }
 
-        $dish = DB::transaction(function () use ($recipe) {
-            $dish = Dish::create([
+        throw new DuplicateDishException("Could not generate a unique dish for \"{$idea->title}\".");
+    }
+
+    private function hasTakenName(array $recipe): bool
+    {
+        return collect($recipe['name'])->contains(fn ($name) => Dish::findByTitle((string) $name) !== null);
+    }
+
+    private function store(array $recipe): Dish
+    {
+        return DB::transaction(function () use ($recipe) {
+            $dish = Dish::create(Translations::byLocale([
                 'slug' => $this->uniqueSlug($recipe['name']['en'] ?? reset($recipe['name'])),
                 'dish_category_id' => DishCategory::where('slug', $recipe['category'])->value('id'),
                 'name' => $recipe['name'],
@@ -55,18 +80,12 @@ class AiDishCreator
                 'image_prompt' => $recipe['image_prompt'],
                 'is_published' => (bool) config('services.ai.publish_new_dishes'),
                 'source' => 'ai',
-            ]);
+            ], (new Dish)->translatedAttributes));
 
             $dish->diets()->sync(Diet::whereIn('slug', $recipe['diets'])->pluck('id'));
 
             return $dish;
         });
-
-        if ($this->ai->imagesEnabled()) {
-            GenerateDishImage::dispatch($dish);
-        }
-
-        return [$dish, true];
     }
 
     /**

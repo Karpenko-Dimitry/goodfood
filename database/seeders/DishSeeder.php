@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Diet;
 use App\Models\Dish;
 use App\Models\DishCategory;
+use App\Support\Translations;
 use Illuminate\Database\Seeder;
 
 class DishSeeder extends Seeder
@@ -19,13 +20,13 @@ class DishSeeder extends Seeder
             'snacks' => ['ru' => 'Перекусы', 'en' => 'Snacks', 'uk' => 'Перекуси'],
         ])->map(fn ($name, $slug) => DishCategory::updateOrCreate(
             ['slug' => $slug],
-            ['name' => $name, 'sort' => array_search($slug, ['breakfast', 'lunch', 'dinner', 'salads', 'snacks'])],
+            Translations::byLocale(['name' => $name, 'sort' => array_search($slug, ['breakfast', 'lunch', 'dinner', 'salads', 'snacks'])], ['name']),
         ));
 
         $diets = Diet::pluck('id', 'slug');
 
         foreach (require __DIR__.'/data/dishes.php' as $data) {
-            $dish = Dish::updateOrCreate(['slug' => $data['slug']], [
+            $dish = Dish::updateOrCreate(['slug' => $data['slug']], Translations::byLocale([
                 'dish_category_id' => $categories[$data['category']]->id,
                 'name' => $data['name'],
                 'excerpt' => $data['excerpt'],
@@ -41,7 +42,7 @@ class DishSeeder extends Seeder
                 'servings' => $data['servings'],
                 'is_featured' => $data['featured'],
                 'source' => 'seed',
-            ]);
+            ], (new Dish)->translatedAttributes));
 
             $dish->diets()->sync($diets->only($data['diets'])->values());
         }

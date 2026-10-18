@@ -5,6 +5,7 @@
 
 return [
     'skip' => 'Skip to content',
+    'language' => 'Language',
     'read_more' => 'Read more',
     'meta' => [
         'description' => 'DietCoach — a collection of popular diets, recipes with macros and a personal AI meal plan.',

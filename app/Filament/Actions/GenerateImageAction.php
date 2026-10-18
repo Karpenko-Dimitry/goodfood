@@ -25,7 +25,7 @@ class GenerateImageAction
             ->modalDescription('Изображение будет сгенерировано по описанию блюда и заменит загруженное фото.')
             ->action(function (Model $record, EditRecord $livewire, NutritionAi $ai) use ($directory) {
                 $subject = $record->image_prompt
-                    ?? trim($record->getTranslation('name', 'en').'. '.$record->getTranslation('excerpt', 'en'));
+                    ?? trim($record->translate('en', true)?->name.'. '.$record->translate('en', true)?->excerpt);
 
                 try {
                     $path = $ai->dishImage($subject, $directory);

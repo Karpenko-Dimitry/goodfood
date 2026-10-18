@@ -34,7 +34,7 @@ class DishCategoryResource extends Resource
     {
         return $schema->components([
             Translatable::tabs(fn (string $locale, bool $default) => [
-                TextInput::make("name.{$locale}")->label('Название')->required($default),
+                TextInput::make("{$locale}.name")->label('Название')->required($default),
             ]),
             TextInput::make('slug')->required()->unique(ignoreRecord: true),
             TextInput::make('sort')->label('Порядок')->numeric()->default(0),

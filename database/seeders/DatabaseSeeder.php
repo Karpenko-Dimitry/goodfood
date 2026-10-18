@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 
 class DatabaseSeeder extends Seeder
 {
@@ -19,5 +20,11 @@ class DatabaseSeeder extends Seeder
             DishSeeder::class,
             LanguageLineSeeder::class,
         ]);
+
+        // Copy the demo photos from Unsplash into local storage (skipped in tests: no network there).
+        if (! app()->runningUnitTests()) {
+            $this->command?->info('Downloading demo images to storage/app/public…');
+            Artisan::call('images:localize', [], $this->command?->getOutput());
+        }
     }
 }

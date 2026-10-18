@@ -49,7 +49,7 @@ class DishResource extends Resource
     {
         return $schema->components([
             Translatable::tabs(fn (string $locale, bool $default) => [
-                TextInput::make("name.{$locale}")
+                TextInput::make("{$locale}.name")
                     ->label('Название')
                     ->required($default)
                     ->maxLength(150)
@@ -59,10 +59,10 @@ class DishResource extends Resource
                             $set('slug', Str::slug($state));
                         }
                     }),
-                Textarea::make("excerpt.{$locale}")->label('Краткое описание')->rows(2),
+                Textarea::make("{$locale}.excerpt")->label('Краткое описание')->rows(2),
                 Grid::make(2)->schema([
-                    Textarea::make("ingredients.{$locale}")->label('Ингредиенты')->helperText('Один ингредиент на строку, напр. «Яйца — 2 шт.»')->rows(8),
-                    Textarea::make("instructions.{$locale}")->label('Приготовление')->helperText('Один шаг на строку')->rows(8),
+                    Textarea::make("{$locale}.ingredients")->label('Ингредиенты')->helperText('Один ингредиент на строку, напр. «Яйца — 2 шт.»')->rows(8),
+                    Textarea::make("{$locale}.instructions")->label('Приготовление')->helperText('Один шаг на строку')->rows(8),
                 ]),
             ]),
 
@@ -87,7 +87,7 @@ class DishResource extends Resource
 
             Section::make('Публикация')->columns(2)->schema([
                 TextInput::make('slug')->required()->unique(ignoreRecord: true),
-                Select::make('dish_category_id')->label('Категория')->relationship('category', 'name')
+                Select::make('dish_category_id')->label('Категория')->relationship('category', 'slug')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->name)->preload(),
                 Select::make('diets')->label('Подходит для диет')->relationship('diets', 'slug')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->icon.' '.$record->name)
@@ -113,8 +113,7 @@ class DishResource extends Resource
                 ImageColumn::make('preview')->label('')->state(fn (Dish $record) => $record->imageUrl())->square(),
                 TextColumn::make('name')->label('Название')->wrap()
                     ->searchable(query: fn (Builder $query, string $search) => $query
-                        ->where('name->ru', 'like', "%{$search}%")
-                        ->orWhere('name->en', 'like', "%{$search}%")
+                        ->whereTranslationLike('name', "%{$search}%")
                         ->orWhere('slug', 'like', "%{$search}%")),
                 TextColumn::make('category.name')->label('Категория')->badge(),
                 TextColumn::make('source')->label('Источник')->badge()

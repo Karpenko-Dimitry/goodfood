@@ -5,6 +5,22 @@ document.querySelectorAll('[data-menu-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => document.querySelector('[data-menu]').classList.toggle('hidden'));
 });
 
+// Dropdowns (language picker): touch screens have no hover, and iOS Safari does not focus buttons on tap.
+document.querySelectorAll('[data-dropdown]').forEach((root) => {
+    const toggle = root.querySelector('[data-dropdown-toggle]');
+    const setOpen = (open) => {
+        root.toggleAttribute('data-open', open);
+        toggle.setAttribute('aria-expanded', String(open));
+    };
+
+    toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setOpen(!root.hasAttribute('data-open'));
+    });
+    document.addEventListener('click', (e) => root.contains(e.target) || setOpen(false));
+    document.addEventListener('keydown', (e) => e.key === 'Escape' && setOpen(false));
+});
+
 // Fade-in on scroll (the template uses Elementor entrance animations)
 const io = new IntersectionObserver((entries) => {
     entries.forEach((e) => {

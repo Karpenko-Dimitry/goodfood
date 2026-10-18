@@ -23,12 +23,14 @@
         </nav>
 
         <div class="flex items-center gap-3">
-            <div class="relative group">
-                <button class="flex items-center gap-1 border border-white/40 px-3 py-1.5 text-sm uppercase text-white">
+            {{-- Opens on tap/click via JS (data-dropdown); hover/keyboard focus also work on desktop. --}}
+            <div class="group relative" data-dropdown>
+                <button type="button" data-dropdown-toggle aria-haspopup="true" aria-expanded="false" aria-label="{{ __('site.language') }}"
+                        class="flex items-center gap-1 border border-white/40 px-3 py-1.5 text-sm uppercase text-white">
                     {{ app()->getLocale() }}
-                    <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                    <svg viewBox="0 0 24 24" class="h-4 w-4 transition group-data-[open]:rotate-180" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
-                <div class="invisible absolute right-0 top-full min-w-40 bg-white py-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
+                <div class="invisible absolute right-0 top-full z-50 min-w-40 bg-white py-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 group-data-[open]:visible group-data-[open]:opacity-100">
                     @foreach (config('app.locales') as $code => $label)
                         <a href="{{ localized_url($code) }}" hreflang="{{ $code }}"
                            class="block px-4 py-2 text-sm hover:bg-brand-light {{ $code === app()->getLocale() ? 'font-semibold text-brand' : '' }}">{{ $label }}</a>
@@ -47,5 +49,11 @@
         @foreach ($nav as $route => $label)
             <a href="{{ route($route) }}" class="block px-6 py-3 text-white/90 hover:bg-brand">{{ $label }}</a>
         @endforeach
+        <div class="flex gap-2 border-t border-white/20 px-6 py-4">
+            @foreach (config('app.locales') as $code => $label)
+                <a href="{{ localized_url($code) }}" hreflang="{{ $code }}"
+                   class="border px-3 py-1.5 text-sm {{ $code === app()->getLocale() ? 'border-white bg-white text-brand' : 'border-white/40 text-white' }}">{{ $label }}</a>
+            @endforeach
+        </div>
     </nav>
 </header>

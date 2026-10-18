@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +12,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(\App\Services\Ai\NutritionAi::class, fn () => new \App\Services\Ai\NutritionAi(config('services.ai')));
+        $this->app->bind(\App\Ai\Contracts\TextModel::class, fn () => new \App\Ai\Providers\ClaudeTextModel(
+            new \Anthropic\Client(apiKey: config('services.ai.anthropic_key')),
+            config('services.ai.effort'),
+        ));
+        $this->app->bind(\App\Ai\Contracts\ImageModel::class, fn () => new \App\Ai\Providers\OpenAiImageModel(config('services.ai.openai_key')));
+        $this->app->singleton(\App\Services\Ai\NutritionAi::class, fn ($app) => new \App\Services\Ai\NutritionAi(
+            $app->make(\App\Ai\Contracts\TextModel::class),
+            $app->make(\App\Ai\Contracts\ImageModel::class),
+            config('services.ai'),
+        ));
     }
 
     /**
@@ -19,6 +29,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // public/hot is written by `npm run dev`; if it is ever uploaded to the server, pages would load
+        // CSS/JS from the developer's machine (http://[::1]:5173). Production always uses public/build.
+        if ($this->app->isProduction()) {
+            Vite::useHotFile(storage_path('framework/vite.hot.disabled'));
+        }
     }
 }

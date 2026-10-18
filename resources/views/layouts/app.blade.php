@@ -9,6 +9,7 @@
     @foreach (config('app.locales') as $code => $label)
         <link rel="alternate" hreflang="{{ $code }}" href="{{ localized_url($code) }}">
     @endforeach
+    <link rel="alternate" hreflang="x-default" href="{{ localized_url(config('app.locale')) }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet">

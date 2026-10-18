@@ -1,18 +1,19 @@
 <?php
 
+use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Laravel\Ai\Migrations\AiMigration;
 
-return new class extends AiMigration
+// Originally published by laravel/ai (removed for PHP 8.2); kept so existing databases stay consistent.
+return new class extends Migration
 {
     /**
      * Run the migrations.
      */
     public function up(): void
     {
-        $conversationsTable = config('ai.conversations.tables.conversations', 'agent_conversations');
-        $messagesTable = config('ai.conversations.tables.messages', 'agent_conversation_messages');
+        $conversationsTable = 'agent_conversations';
+        $messagesTable = 'agent_conversation_messages';
 
         Schema::create($conversationsTable, function (Blueprint $table) {
             $table->string('id', 36)->primary();
@@ -49,7 +50,7 @@ return new class extends AiMigration
      */
     public function down(): void
     {
-        Schema::dropIfExists(config('ai.conversations.tables.messages', 'agent_conversation_messages'));
-        Schema::dropIfExists(config('ai.conversations.tables.conversations', 'agent_conversations'));
+        Schema::dropIfExists('agent_conversation_messages');
+        Schema::dropIfExists('agent_conversations');
     }
 };

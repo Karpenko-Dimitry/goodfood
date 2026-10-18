@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
-@section('title', __('site.nav.ai_plan'))
+@section('title', __('site.plan.title'))
+@section('description', __('site.meta.ai_plan'))
+
+@push('jsonld')
+    <x-json-ld :data="\App\Support\StructuredData::breadcrumbs([__('site.nav.home') => route('home'), __('site.plan.title') => route('plan.create')])" />
+@endpush
 
 @section('content')
     <x-page-hero :title="__('site.plan.title')" :subtitle="__('site.plan.subtitle')"

@@ -71,7 +71,7 @@ class Diet extends Model implements TranslatableContract
     public array $translatedAttributes = ['name', 'excerpt', 'description', 'pros', 'cons', 'allowed_foods', 'forbidden_foods'];
 
     /** Translations are needed on every render; avoid N+1. */
-    protected $with = ['translations'];
+    protected $with = ['translations', 'imageObject.files'];
 
     protected function casts(): array
     {
@@ -79,6 +79,11 @@ class Diet extends Model implements TranslatableContract
             'is_featured' => 'boolean',
             'is_published' => 'boolean',
         ];
+    }
+
+    public static function imageFileConfig(): string
+    {
+        return 'diet_image';   // App\FileConfigs\DietImageFileConfig
     }
 
     public function getRouteKeyName(): string

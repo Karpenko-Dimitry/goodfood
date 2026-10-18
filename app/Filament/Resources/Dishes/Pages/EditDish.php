@@ -21,4 +21,12 @@ class EditDish extends EditRecord
             DeleteAction::make(),
         ];
     }
+
+    /**
+     * The upload was converted to presets and the raw file removed (HasImage); refresh the image fields.
+     */
+    protected function afterSave(): void
+    {
+        $this->refreshFormData(['image', 'current_image']);
+    }
 }

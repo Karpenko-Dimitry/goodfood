@@ -18,3 +18,25 @@ if (! function_exists('localized_url')) {
         return $query ? "{$url}?{$query}" : $url;
     }
 }
+
+if (! function_exists('get_objects_in_directory')) {
+    /**
+     * Instantiate every concrete class found in a directory (used by FileService to register file configs).
+     *
+     * @return list<object>
+     */
+    function get_objects_in_directory(string $directory, string $namespace): array
+    {
+        if (! is_dir($directory)) {
+            return [];
+        }
+
+        return collect(\Illuminate\Support\Facades\File::files($directory))
+            ->map(fn (\SplFileInfo $file) => $namespace.$file->getBasename('.php'))
+            ->filter(fn (string $class) => class_exists($class) && (new ReflectionClass($class))->isInstantiable())
+            ->map(fn (string $class) => new $class)
+            ->values()
+            ->all();
+    }
+}
+

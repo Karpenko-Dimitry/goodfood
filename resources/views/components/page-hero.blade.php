@@ -1,7 +1,8 @@
-@props(['title', 'subtitle' => null, 'image' => null])
+@props(['title', 'subtitle' => null, 'image' => null, 'model' => null])
 <section class="relative overflow-hidden bg-brand-dark py-20 text-white sm:py-28">
-    @if ($image)
-        <img src="{{ $image }}" alt="" class="absolute inset-0 h-full w-full object-cover opacity-30">
+    @if ($model?->imageUrl() || $image)
+        {{-- Usually the LCP element of inner pages. --}}
+        <x-image :model="$model" :src="$image" preset="lg" sizes="100vw" priority class="absolute inset-0 h-full w-full opacity-30" />
     @endif
     <div class="absolute inset-0 bg-gradient-to-r from-brand-dark/90 to-brand/60"></div>
     <div class="container-x relative text-center">

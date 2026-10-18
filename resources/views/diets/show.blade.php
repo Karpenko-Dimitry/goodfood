@@ -2,9 +2,18 @@
 
 @section('title', $diet->name)
 @section('description', $diet->excerpt)
+@section('og_type', 'article')
+@if ($diet->imageUrl('lg'))
+    @section('og_image', $diet->imageUrl('lg'))
+@endif
+
+@push('jsonld')
+    <x-json-ld :data="\App\Support\StructuredData::dietArticle($diet)" />
+    <x-json-ld :data="\App\Support\StructuredData::breadcrumbs([__('site.nav.home') => route('home'), __('site.nav.diets') => route('diets.index'), $diet->name => route('diets.show', $diet)])" />
+@endpush
 
 @section('content')
-    <x-page-hero :title="$diet->name" :subtitle="$diet->excerpt" :image="$diet->imageUrl()" />
+    <x-page-hero :title="$diet->name" :subtitle="$diet->excerpt" :model="$diet" />
 
     <section class="section">
         <div class="container-x grid gap-12 lg:grid-cols-[1fr_360px]">

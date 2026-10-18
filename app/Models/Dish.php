@@ -73,7 +73,7 @@ class Dish extends Model implements TranslatableContract
     public array $translatedAttributes = ['name', 'excerpt', 'ingredients', 'instructions'];
 
     /** Translations are needed on every render; avoid N+1. */
-    protected $with = ['translations'];
+    protected $with = ['translations', 'imageObject.files'];
 
     protected function casts(): array
     {
@@ -84,6 +84,11 @@ class Dish extends Model implements TranslatableContract
             'is_featured' => 'boolean',
             'is_published' => 'boolean',
         ];
+    }
+
+    public static function imageFileConfig(): string
+    {
+        return 'dish_image';   // App\FileConfigs\DishImageFileConfig
     }
 
     public function getRouteKeyName(): string

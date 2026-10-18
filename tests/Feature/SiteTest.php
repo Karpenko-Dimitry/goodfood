@@ -140,7 +140,12 @@ class SiteTest extends TestCase
         $this->assertSame("Oats — 60 g\nMilk — 200 ml", $dish->translate('en')->ingredients);
         $this->assertEqualsCanonicalizing(['ru', 'en', 'uk'], $dish->translations->pluck('locale')->all());
         $this->assertTrue($dish->diets()->where('slug', 'mediterranean')->exists());
-        Storage::disk('public')->assertExists($dish->image);
+        // The AI photo became presets (App\FileConfigs\DishImageFileConfig); the raw file is gone.
+        $this->assertNull($dish->image);
+        $this->assertEqualsCanonicalizing(['thumb', 'sm', 'md', 'lg', 'original'], $dish->imageObject->files->pluck('key')->all());
+        $this->assertSame('webp', $dish->imageObject->findFile('sm')->ext);
+        $this->assertSame([480, 360], $dish->imageDimensions('sm'));
+        Storage::disk('public')->assertExists($dish->imageObject->findFile('md')->path);
         $this->ai->assertImageGenerated(fn (string $prompt) => str_contains($prompt, 'A bowl of Oats'));
 
         $this->get("/en/ai-plan/{$plan->uuid}")
@@ -213,32 +218,86 @@ class SiteTest extends TestCase
             ->where('locale', 'en')->distinct()->count('name'));
     }
 
-    public function test_seed_images_are_downloaded_to_local_storage(): void
+    public function test_seed_images_are_stored_as_presets(): void
     {
-        Storage::fake('public');
         Http::preventStrayRequests();
         $broken = true;
-        Http::fake(function ($request) use (&$broken) {
+        $jpeg = self::jpeg();
+        Http::fake(function ($request) use (&$broken, $jpeg) {
             return $broken && str_contains($request->url(), 'photo-1546069901-ba9599a7e63c')
                 ? Http::response('', 404)
-                : Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+                : Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']);
         });
 
         $this->artisan('images:localize')->assertFailed();   // one broken URL is reported, the rest stored
 
         $dish = Dish::where('slug', 'avocado-egg-toast')->first();
-        $this->assertSame('dishes/avocado-egg-toast.jpg', $dish->image);
-        Storage::disk('public')->assertExists($dish->image);
-        $this->assertStringEndsWith('/storage/dishes/avocado-egg-toast.jpg', $dish->imageUrl());
+        $this->assertStringContainsString('/storage/assets/files/', $dish->imageUrl('md'));
+        $this->assertStringEndsWith('.webp', $dish->imageUrl('md'));
+        $this->assertMatchesRegularExpression('~\.webp 480w, .+\.webp 960w, .+\.webp 1440w$~', $dish->imageSrcset());
         $this->assertNotNull($dish->image_url);   // source kept
 
-        $this->assertSame('diets/keto.jpg', Diet::where('slug', 'keto')->value('image'));
-        $this->assertNull(Dish::where('slug', 'salmon-quinoa-bowl')->value('image'));   // 404 -> still hotlinked
+        $this->assertSame([1600, 1067], Diet::where('slug', 'keto')->first()->imageDimensions('lg'));
 
-        // Second run only retries what is missing.
+        // 404 -> no presets yet, still served from Unsplash at a reduced size.
+        $broken404 = Dish::where('slug', 'salmon-quinoa-bowl')->first();
+        $this->assertNull($broken404->imageObject);
+        $this->assertStringContainsString('w=1280', $broken404->imageUrl());
+
+        // Second run only processes what is missing.
         $broken = false;
         $this->artisan('images:localize')->assertSuccessful();
-        $this->assertSame('dishes/salmon-quinoa-bowl.jpg', Dish::where('slug', 'salmon-quinoa-bowl')->value('image'));
+        $this->assertNotNull($broken404->fresh()->imageObject);
+        $this->assertSame(Diet::count() + Dish::count(), \App\Services\FileService\Models\FileObject::count());
+    }
+
+    public function test_uploaded_image_is_converted_to_presets_and_replaced(): void
+    {
+        $dish = Dish::where('slug', 'pumpkin-cream-soup')->first();
+        $disk = Storage::disk('public');
+
+        $disk->put('uploads/dishes/first.jpg', self::jpeg());
+        $dish->update(['image' => 'uploads/dishes/first.jpg']);   // what the admin FileUpload / AI photo does
+
+        $first = $dish->fresh()->imageObject;
+        $this->assertNotNull($first);
+        $this->assertNull($dish->fresh()->image);
+        $disk->assertMissing('uploads/dishes/first.jpg');
+        $oldPaths = $first->files->pluck('path');
+
+        $disk->put('uploads/dishes/second.jpg', self::jpeg());
+        $dish->update(['image' => 'uploads/dishes/second.jpg']);
+
+        $this->assertNotSame($first->id, $dish->fresh()->imageObject->id);
+        $this->assertSame(1, $dish->fileObjects()->count());
+        $oldPaths->each(fn ($path) => $disk->assertMissing($path));   // old presets deleted
+
+        $html = $this->get('/uk/recipes/pumpkin-cream-soup')->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('~<img src="[^"]+\.webp"\s+srcset="[^"]+ 480w, [^"]+ 960w, [^"]+ 1440w"\s+sizes="\(min-width: 1024px\) 50vw, 100vw"\s+width="960" height="720"~', $html);
+        $this->assertStringContainsString('fetchpriority="high"', $html);
+
+        $paths = $dish->fresh()->imageObject->files->pluck('path');
+        $dish->delete();
+        $this->assertSame(0, \App\Services\FileService\Models\FileObject::count());
+        $paths->each(fn ($path) => $disk->assertMissing($path));
+    }
+
+    public function test_home_hero_is_responsive_and_prioritized(): void
+    {
+        $html = $this->get('/uk')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('~<img src="https://images\.unsplash\.com/photo-1490645935967-10de6ba17061\?w=1280[^"]*"\s+srcset="[^"]*w=640[^"]* 640w,[^"]* 1920w"\s+sizes="100vw"[^>]*loading="eager" fetchpriority="high"~', $html);
+    }
+
+    private static function jpeg(int $width = 800, int $height = 600): string
+    {
+        $image = imagecreatetruecolor($width, $height);
+        imagefill($image, 0, 0, imagecolorallocate($image, 200, 120, 40));
+        ob_start();
+        imagejpeg($image, null, 80);
+        imagedestroy($image);
+
+        return (string) ob_get_clean();
     }
 
     public function test_ai_plan_validation(): void

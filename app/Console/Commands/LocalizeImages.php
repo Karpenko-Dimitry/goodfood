@@ -13,48 +13,64 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Downloads external images (image_url) of diets and dishes into local storage (public disk)
- * so the site no longer hotlinks them. image_url is kept as the source reference.
+ * Builds FileService presets (App\FileConfigs) for diets and dishes that do not have them yet:
+ * from a legacy local file in `image` (public disk) or by downloading `image_url`.
  */
 class LocalizeImages extends Command
 {
     protected $signature = 'images:localize
-                            {--force : Download again even if a local file is already set}';
+                            {--force : Rebuild presets even if the model already has them}';
 
-    protected $description = 'Download external diet/dish images into storage/app/public';
+    protected $description = 'Store diet/dish images locally as optimized presets (FileService)';
 
-    private const MIME_EXTENSIONS = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/avif' => 'avif'];
+    private const MIME_EXTENSIONS = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
 
     public function handle(): int
     {
         $done = $failed = 0;
 
-        foreach ([Diet::class => 'diets', Dish::class => 'dishes'] as $model => $directory) {
+        foreach ([Diet::class, Dish::class] as $model) {
             $records = $model::query()
-                ->whereNotNull('image_url')
-                ->when(! $this->option('force'), fn ($q) => $q->whereNull('image'))
+                ->where(fn ($q) => $q->whereNotNull('image')->orWhereNotNull('image_url'))
+                ->when(! $this->option('force'), fn ($q) => $q->whereDoesntHave('imageObject'))
                 ->get();
 
             foreach ($records as $record) {
                 try {
-                    $this->localize($record, $directory);
+                    $this->localize($record);
                     $done++;
-                    $this->line("  ✓ {$directory}/{$record->slug}");
+                    $this->line("  ✓ {$record->getTable()}/{$record->slug}");
                 } catch (Throwable $e) {
                     $failed++;
-                    $this->warn("  ✗ {$directory}/{$record->slug}: {$e->getMessage()}");
+                    $this->warn("  ✗ {$record->getTable()}/{$record->slug}: {$e->getMessage()}");
                 }
             }
         }
 
-        $this->info("Images stored locally: {$done}, failed: {$failed}.");
+        $this->info("Images stored as presets: {$done}, failed: {$failed}.");
 
         return $failed ? self::FAILURE : self::SUCCESS;
     }
 
-    private function localize(Model $record, string $directory): void
+    private function localize(Model $record): void
     {
-        $response = Http::timeout(30)
+        $disk = Storage::disk('public');
+
+        // A legacy local file (uploaded or downloaded earlier).
+        if ($record->image && $disk->exists($record->image)) {
+            $record->attachImage($disk->path($record->image), basename($record->image));
+            $disk->delete($record->image);
+            $record->newQueryWithoutScopes()->whereKey($record->getKey())->update(['image' => null]);
+
+            return;
+        }
+
+        if (! $record->image_url) {
+            throw new \RuntimeException('No image source.');
+        }
+
+        // Download the original (no resize parameters) into a temporary file.
+        $response = Http::timeout(60)
             ->retry(2, 500, fn (Throwable $e) => $e instanceof ConnectionException
                 || ($e instanceof RequestException && $e->response->serverError()))
             ->get($record->image_url)
@@ -63,14 +79,13 @@ class LocalizeImages extends Command
         $mime = strtok((string) $response->header('Content-Type'), ';');
         $extension = self::MIME_EXTENSIONS[$mime] ?? throw new \RuntimeException("Not an image ({$mime})");
 
-        $path = "{$directory}/{$record->slug}.{$extension}";
-        Storage::disk('public')->put($path, $response->body());
+        $tmp = tempnam(sys_get_temp_dir(), 'img');
+        file_put_contents($tmp, $response->body());
 
-        $old = $record->image;
-        $record->update(['image' => $path]);
-
-        if ($old && $old !== $path) {
-            Storage::disk('public')->delete($old);
+        try {
+            $record->attachImage($tmp, "{$record->slug}.{$extension}");
+        } finally {
+            @unlink($tmp);
         }
     }
 }

@@ -50,4 +50,10 @@ return [
         'publish_new_dishes' => (bool) env('AI_PUBLISH_NEW_DISHES', true),
     ],
 
+    // Search Console / Bing Webmaster verification codes (meta tags), see partials/seo.
+    'seo' => [
+        'google_verification' => env('GOOGLE_SITE_VERIFICATION'),
+        'bing_verification' => env('BING_SITE_VERIFICATION'),
+    ],
+
 ];

@@ -1,6 +1,8 @@
 @extends('layouts.app')
 
 @section('title', __('site.plan.result_title'))
+{{-- A personal plan: never index it. --}}
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <x-page-hero :title="__('site.plan.result_title')" :subtitle="$plan->name ? __('site.plan.for', ['name' => $plan->name]) : null" />
@@ -61,7 +63,7 @@
                                             @php($recipe = $recipes[$meal['recipe_slug'] ?? ''] ?? $planDishes[\App\Models\Dish::normalizeTitle($meal['title'])] ?? null)
                                             <div class="flex gap-4 bg-white p-6">
                                                 @if ($recipe)
-                                                    <x-image :src="$recipe->imageUrl()" :alt="$recipe->name" class="h-20 w-20 shrink-0" />
+                                                    <x-image :model="$recipe" preset="thumb" :responsive="false" :alt="$recipe->name" class="h-20 w-20 shrink-0" />
                                                 @endif
                                                 <div class="min-w-0 flex-1">
                                                     <p class="eyebrow">{{ __('site.plan.meal_'.$meal['type']) }}</p>

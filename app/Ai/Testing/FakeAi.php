@@ -60,7 +60,7 @@ class FakeAi implements ImageModel, TextModel
         if (is_string($task)) {
             $this->imagePrompts[] = $task;
 
-            return $this->image ? ($this->image)($task) : ['fake-image', 'png'];
+            return $this->image ? ($this->image)($task) : [self::png(), 'png'];
         }
 
         $this->tasks[] = $task;
@@ -68,6 +68,20 @@ class FakeAi implements ImageModel, TextModel
         $response = count($queue) > 1 ? array_shift($this->responses[$task::class]) : $queue[0];
 
         return $response instanceof Closure ? $response($task) : $response;
+    }
+
+    /**
+     * A real (tiny) PNG, so image processing (FileService presets) can decode it.
+     */
+    public static function png(int $width = 1600, int $height = 1200): string
+    {
+        $image = imagecreatetruecolor($width, $height);
+        imagefill($image, 0, 0, imagecolorallocate($image, 65, 117, 0));
+        ob_start();
+        imagepng($image);
+        imagedestroy($image);
+
+        return (string) ob_get_clean();
     }
 
     public function available(): bool

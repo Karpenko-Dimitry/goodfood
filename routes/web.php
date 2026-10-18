@@ -4,10 +4,16 @@ use App\Http\Controllers\DietController;
 use App\Http\Controllers\DietPlanController;
 use App\Http\Controllers\DishController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\SeoController;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('home', ['locale' => config('app.locale')]));
+
+// Crawler files (public/robots.txt must not exist, or the web server would serve it instead).
+Route::get('/robots.txt', [SeoController::class, 'robots']);
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap']);
+Route::get('/llms.txt', [SeoController::class, 'llms']);
 
 Route::prefix('{locale}')
     ->where(['locale' => implode('|', array_keys(config('app.locales')))])

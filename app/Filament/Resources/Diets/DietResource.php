@@ -12,6 +12,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -86,7 +87,13 @@ class DietResource extends Resource
             ]),
 
             Section::make('Изображение')->columns(2)->schema([
-                FileUpload::make('image')->label('Загрузить')->image()->disk('public')->directory('diets')->imageEditor(),
+                ImageEntry::make('current_image')->label('Текущее фото')->columnSpanFull()
+                    ->state(fn (?Diet $record) => $record?->imageUrl('sm'))
+                    ->visible(fn (?Diet $record) => (bool) $record?->imageUrl('sm'))
+                    ->imageHeight(140)
+                    ->helperText('Хранится в оптимизированных размерах (WebP) — App\\FileConfigs\\DietImageFileConfig.'),
+                FileUpload::make('image')->label('Загрузить новое')->image()->disk('public')->directory('uploads/diets')->imageEditor()
+                    ->helperText('После сохранения файл превращается в набор размеров, а исходник удаляется.'),
                 TextInput::make('image_url')->label('или внешний URL')->url()->helperText('Используется, если файл не загружен.'),
             ]),
         ]);
@@ -98,7 +105,7 @@ class DietResource extends Resource
             ->defaultSort('sort')
             ->reorderable('sort')
             ->columns([
-                ImageColumn::make('preview')->label('')->state(fn (Diet $record) => $record->imageUrl())->square(),
+                ImageColumn::make('preview')->label('')->state(fn (Diet $record) => $record->imageUrl('sm'))->square(),
                 TextColumn::make('name')->label('Название')
                     ->description(fn (Diet $record) => $record->icon.' '.$record->slug)
                     ->searchable(query: fn (Builder $query, string $search) => $query

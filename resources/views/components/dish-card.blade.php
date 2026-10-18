@@ -1,7 +1,7 @@
 @props(['dish'])
 <a href="{{ route('dishes.show', $dish) }}" class="group reveal flex flex-col bg-panel transition hover:-translate-y-1 hover:shadow-xl">
     <div class="relative aspect-[4/3] overflow-hidden">
-        <x-image :src="$dish->imageUrl()" :alt="$dish->name" class="h-full w-full transition duration-500 group-hover:scale-105" />
+        <x-image :model="$dish" preset="sm" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" :alt="$dish->name" class="h-full w-full transition duration-500 group-hover:scale-105" />
         @if ($dish->category)
             <span class="absolute left-4 top-4 bg-brand px-3 py-1 text-xs uppercase tracking-wide text-white">{{ $dish->category->name }}</span>
         @endif

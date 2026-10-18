@@ -2,6 +2,20 @@
 
 @section('title', $dish->name)
 @section('description', $dish->excerpt)
+@section('og_type', 'article')
+@if ($dish->imageUrl('lg'))
+    @section('og_image', $dish->imageUrl('lg'))
+@endif
+
+@push('jsonld')
+    <x-json-ld :data="\App\Support\StructuredData::recipe($dish)" />
+    <x-json-ld :data="\App\Support\StructuredData::breadcrumbs(array_filter([
+        __('site.nav.home') => route('home'),
+        __('site.nav.recipes') => route('dishes.index'),
+        $dish->category?->name => $dish->category ? route('dishes.index', ['category' => $dish->category->slug]) : null,
+        $dish->name => route('dishes.show', $dish),
+    ]))" />
+@endpush
 
 @section('content')
     @php($split = $dish->macroSplit())
@@ -38,7 +52,7 @@
                     </div>
                 @endif
             </div>
-            <x-image :src="$dish->imageUrl()" :alt="$dish->name" class="aspect-[4/3] w-full shadow-2xl" />
+            <x-image :model="$dish" preset="md" sizes="(min-width: 1024px) 50vw, 100vw" priority :alt="$dish->name" class="aspect-[4/3] w-full shadow-2xl" />
         </div>
     </section>
 

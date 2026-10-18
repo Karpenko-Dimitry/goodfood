@@ -1,13 +1,14 @@
 @extends('layouts.app')
 
 @section('title', __('site.nav.about'))
+@section('description', __('site.meta.about'))
 
 @section('content')
     <x-page-hero :title="__('site.nav.about')" image="https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?w=1600&q=70&auto=format&fit=crop" />
 
     <section class="section">
         <div class="container-x grid items-center gap-12 lg:grid-cols-2">
-            <img src="https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1000&q=80&auto=format&fit=crop" alt="" class="aspect-[4/3] w-full object-cover">
+            <x-image src="https://images.unsplash.com/photo-1498837167922-ddd27525d352" sizes="(min-width: 1024px) 50vw, 100vw" class="aspect-[4/3] w-full" />
             <div>
                 <p class="eyebrow">{{ __('site.about.eyebrow') }}</p>
                 <h2 class="mt-3 text-4xl sm:text-5xl">{{ __('site.about.title') }}</h2>

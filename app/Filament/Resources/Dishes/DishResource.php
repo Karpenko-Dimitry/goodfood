@@ -12,6 +12,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
+use Filament\Infolists\Components\ImageEntry;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -97,7 +98,13 @@ class DishResource extends Resource
             ]),
 
             Section::make('Фото')->columns(2)->schema([
-                FileUpload::make('image')->label('Загрузить')->image()->disk('public')->directory('dishes')->imageEditor(),
+                ImageEntry::make('current_image')->label('Текущее фото')->columnSpanFull()
+                    ->state(fn (?Dish $record) => $record?->imageUrl('sm'))
+                    ->visible(fn (?Dish $record) => (bool) $record?->imageUrl('sm'))
+                    ->imageHeight(140)
+                    ->helperText('Хранится в оптимизированных размерах (WebP) — App\\FileConfigs\\DishImageFileConfig.'),
+                FileUpload::make('image')->label('Загрузить новое')->image()->disk('public')->directory('uploads/dishes')->imageEditor()
+                    ->helperText('После сохранения файл превращается в набор размеров, а исходник удаляется.'),
                 TextInput::make('image_url')->label('или внешний URL')->url()->helperText('Используется, если файл не загружен. На странице редактирования есть кнопка «Фото через AI».'),
                 Textarea::make('image_prompt')->label('Описание для AI-фото (EN)')->rows(2)->columnSpanFull()
                     ->helperText('Заполняется автоматически у блюд, созданных ИИ.'),
@@ -110,7 +117,7 @@ class DishResource extends Resource
         return $table
             ->defaultSort('id', 'desc')
             ->columns([
-                ImageColumn::make('preview')->label('')->state(fn (Dish $record) => $record->imageUrl())->square(),
+                ImageColumn::make('preview')->label('')->state(fn (Dish $record) => $record->imageUrl('thumb'))->square(),
                 TextColumn::make('name')->label('Название')->wrap()
                     ->searchable(query: fn (Builder $query, string $search) => $query
                         ->whereTranslationLike('name', "%{$search}%")

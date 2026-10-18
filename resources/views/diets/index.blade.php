@@ -1,6 +1,12 @@
 @extends('layouts.app')
 
 @section('title', __('site.nav.diets'))
+@section('description', __('site.meta.diets'))
+
+@push('jsonld')
+    <x-json-ld :data="\App\Support\StructuredData::breadcrumbs([__('site.nav.home') => route('home'), __('site.nav.diets') => route('diets.index')])" />
+    <x-json-ld :data="\App\Support\StructuredData::itemList($diets, 'diets.show')" />
+@endpush
 
 @section('content')
     <x-page-hero :title="__('site.nav.diets')" :subtitle="__('site.diets.subtitle')"
@@ -12,7 +18,7 @@
                 @foreach ($diets as $diet)
                     <article class="reveal group flex flex-col bg-panel transition hover:-translate-y-1 hover:shadow-xl">
                         <a href="{{ route('diets.show', $diet) }}" class="relative block aspect-[16/10] overflow-hidden">
-                            <x-image :src="$diet->imageUrl()" :alt="$diet->name" class="h-full w-full transition duration-500 group-hover:scale-105" />
+                            <x-image :model="$diet" preset="sm" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" :alt="$diet->name" class="h-full w-full transition duration-500 group-hover:scale-105" />
                             <span class="absolute left-4 top-4 flex h-12 w-12 items-center justify-center bg-white text-2xl">{{ $diet->icon ?: '🥗' }}</span>
                         </a>
                         <div class="flex flex-1 flex-col p-8">

@@ -1,6 +1,16 @@
 @extends('layouts.app')
 
 @section('title', __('site.nav.recipes'))
+@section('description', __('site.meta.recipes'))
+{{-- Filter/search combinations are duplicates of the main list: keep them out of the index. --}}
+@if (request()->hasAny(['q', 'category', 'diet', 'max_kcal', 'sort']))
+    @section('robots', 'noindex, follow')
+@endif
+
+@push('jsonld')
+    <x-json-ld :data="\App\Support\StructuredData::breadcrumbs([__('site.nav.home') => route('home'), __('site.nav.recipes') => route('dishes.index')])" />
+    <x-json-ld :data="\App\Support\StructuredData::itemList($dishes, 'dishes.show')" />
+@endpush
 
 @section('content')
     <x-page-hero :title="__('site.nav.recipes')" :subtitle="__('site.recipes.subtitle')"

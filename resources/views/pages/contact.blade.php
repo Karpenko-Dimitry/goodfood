@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('title', __('site.nav.contact'))
+@section('description', __('site.meta.contact'))
 
 @section('content')
     <x-page-hero :title="__('site.nav.contact')" :subtitle="__('site.contact.subtitle')" />

@@ -8,6 +8,12 @@ return [
     'language' => 'Language',
     'read_more' => 'Read more',
     'meta' => [
+        'home_title' => 'Your online diet coach: diets, recipes with macros and an AI meal plan',
+        'diets' => 'Popular diets compared: Mediterranean, keto, intermittent fasting, vegan and more — principles, pros and cons, what to eat.',
+        'recipes' => 'Healthy recipes with photos, step-by-step instructions and exact calories, protein, fat and carbs per serving.',
+        'ai_plan' => 'Free personal 7-day AI meal plan: calorie and macro targets, menu, recipes and a shopping list.',
+        'about' => 'DietCoach combines proven eating styles, recipes with exact macros and AI for personal meal plans.',
+        'contact' => 'Contact DietCoach: questions about nutrition, diets and your personal AI meal plan.',
         'description' => 'DietCoach — a collection of popular diets, recipes with macros and a personal AI meal plan.',
     ],
     'nav' => [

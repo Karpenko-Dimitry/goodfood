@@ -1,9 +1,11 @@
 @extends('layouts.app')
 
+@section('title', __('site.meta.home_title'))
+
 @section('content')
     {{-- Hero --}}
     <section class="relative flex min-h-[640px] items-center overflow-hidden bg-brand-dark">
-        <img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1920&q=80&auto=format&fit=crop" alt="" class="absolute inset-0 h-full w-full object-cover">
+        <x-image src="https://images.unsplash.com/photo-1490645935967-10de6ba17061" sizes="100vw" priority class="absolute inset-0 h-full w-full" />
         <div class="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-transparent"></div>
         <div class="container-x relative py-24 text-white">
             <p class="eyebrow !text-white/80">{{ __('site.home.hero_eyebrow') }}</p>
@@ -37,7 +39,7 @@
                     </div>
                     @foreach ($featuredDiets as $diet)
                         <div data-panel="{{ $loop->index }}" class="{{ $loop->first ? '' : 'hidden' }} grid min-w-0 items-center gap-10 md:grid-cols-2">
-                            <x-image :src="$diet->imageUrl()" :alt="$diet->name" class="aspect-[4/3] w-full" />
+                            <x-image :model="$diet" preset="md" sizes="(min-width: 1024px) 40vw, 100vw" :alt="$diet->name" class="aspect-[4/3] w-full" />
                             <div>
                                 <h3 class="text-3xl sm:text-4xl">{{ $diet->name }}</h3>
                                 <p class="mt-5 leading-relaxed text-muted">{{ $diet->excerpt }}</p>

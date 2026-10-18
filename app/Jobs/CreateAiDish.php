@@ -26,7 +26,7 @@ class CreateAiDish implements ShouldQueue
     public function handle(AiDishCreator $creator): void
     {
         try {
-            [$dish, $created] = $creator->create($this->idea);
+            $dish = $creator->create($this->idea);
         } catch (Throwable $e) {
             $this->retryOrFail($e);
 
@@ -35,7 +35,7 @@ class CreateAiDish implements ShouldQueue
 
         if ($this->planRequest) {
             $this->planRequest->dishes()->syncWithoutDetaching([
-                $dish->id => ['meal_title' => $this->idea->title, 'created' => $created],
+                $dish->id => ['meal_title' => $this->idea->title, 'created' => true],
             ]);
             $this->finish();
         }

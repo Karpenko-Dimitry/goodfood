@@ -32,7 +32,7 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::hex('#417500'),
             ])
             ->font('DM Sans')
-            ->navigationGroups(['Контент', 'AI', 'Локализация'])
+            ->navigationGroups(['Контент', 'AI', 'Аналитика', 'Локализация'])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -52,6 +52,8 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                \App\Http\Middleware\TrackVisitor::class,
+                \App\Http\Middleware\SetAdminLocale::class,
             ])
             ->authMiddleware([
                 Authenticate::class,

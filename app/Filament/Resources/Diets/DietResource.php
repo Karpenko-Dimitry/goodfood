@@ -48,7 +48,7 @@ class DietResource extends Resource
     {
         return $schema->components([
             Translatable::tabs(fn (string $locale, bool $default) => [
-                TextInput::make("name.{$locale}")
+                TextInput::make("{$locale}.name")
                     ->label('Название')
                     ->required($default)
                     ->maxLength(150)
@@ -58,13 +58,13 @@ class DietResource extends Resource
                             $set('slug', Str::slug($state));
                         }
                     }),
-                Textarea::make("excerpt.{$locale}")->label('Краткое описание')->rows(2),
-                RichEditor::make("description.{$locale}")->label('Описание'),
+                Textarea::make("{$locale}.excerpt")->label('Краткое описание')->rows(2),
+                RichEditor::make("{$locale}.description")->label('Описание'),
                 Grid::make(2)->schema([
-                    Textarea::make("pros.{$locale}")->label('Плюсы')->helperText('По одному на строку')->rows(4),
-                    Textarea::make("cons.{$locale}")->label('Минусы')->helperText('По одному на строку')->rows(4),
-                    Textarea::make("allowed_foods.{$locale}")->label('Разрешённые продукты')->helperText('По одному на строку')->rows(5),
-                    Textarea::make("forbidden_foods.{$locale}")->label('Запрещённые продукты')->helperText('По одному на строку')->rows(5),
+                    Textarea::make("{$locale}.pros")->label('Плюсы')->helperText('По одному на строку')->rows(4),
+                    Textarea::make("{$locale}.cons")->label('Минусы')->helperText('По одному на строку')->rows(4),
+                    Textarea::make("{$locale}.allowed_foods")->label('Разрешённые продукты')->helperText('По одному на строку')->rows(5),
+                    Textarea::make("{$locale}.forbidden_foods")->label('Запрещённые продукты')->helperText('По одному на строку')->rows(5),
                 ]),
             ]),
 
@@ -102,8 +102,7 @@ class DietResource extends Resource
                 TextColumn::make('name')->label('Название')
                     ->description(fn (Diet $record) => $record->icon.' '.$record->slug)
                     ->searchable(query: fn (Builder $query, string $search) => $query
-                        ->where('name->ru', 'like', "%{$search}%")
-                        ->orWhere('name->en', 'like', "%{$search}%")
+                        ->whereTranslationLike('name', "%{$search}%")
                         ->orWhere('slug', 'like', "%{$search}%")),
                 TextColumn::make('difficulty')->label('Сложность')->badge()
                     ->formatStateUsing(fn (int $state) => [1 => 'Легко', 2 => 'Средне', 3 => 'Сложно'][$state])

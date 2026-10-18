@@ -2,30 +2,45 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Contracts\StructuredTask;
 use App\Models\Diet;
 use App\Models\Dish;
 use App\Models\DishCategory;
+use App\Services\Ai\DishIdea;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Attributes\MaxTokens;
-use Laravel\Ai\Attributes\Timeout;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Promptable;
-use Stringable;
 
 /**
  * Writes one complete, original recipe in every site locale.
  */
-#[MaxTokens(6000)]
-#[Timeout(180)]
-class DishChef implements Agent, HasStructuredOutput
+class DishChef implements StructuredTask
 {
-    use Promptable;
+    /**
+     * @param  list<string>  $takenNames  names already used on the site
+     */
+    public function __construct(public DishIdea $idea, public array $takenNames = []) {}
 
-    public function instructions(): Stringable|string
+    public function maxTokens(): int
+    {
+        return 8000;
+    }
+
+    public function input(): string
+    {
+        $prompt = $this->idea->toPrompt();
+
+        if ($this->takenNames) {
+            $prompt .= "\n\nThese names are ALREADY TAKEN on the site — create a clearly different dish "
+                .'in the same spirit, with a new name: '.implode('; ', $this->takenNames);
+        }
+
+        return $prompt;
+    }
+
+    public function instructions(): string
     {
         $languages = collect(config('app.locales'))->map(fn ($name, $code) => "{$code} = {$name}")->implode(', ');
-        $existing = Dish::query()->get(['name'])->map(fn (Dish $d) => $d->getTranslation('name', 'en'))->implode('; ');
+        $existing = Dish::query()->latest('id')->limit(500)->get()
+            ->map(fn (Dish $d) => $d->translate('en', true)?->name)->filter()->implode('; ');
 
         return <<<PROMPT
         You are a recipe developer and nutritionist for the DietCoach website.

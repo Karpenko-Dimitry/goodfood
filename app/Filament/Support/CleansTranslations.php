@@ -3,26 +3,47 @@
 namespace App\Filament\Support;
 
 /**
- * For Create/Edit pages of models using spatie/laravel-translatable.
+ * Create/Edit pages of models using astrotomic/laravel-translatable.
+ * Form state is per locale: ['ru' => ['name' => ...], 'en' => [...]] (fields named "{locale}.{attribute}").
  */
 trait CleansTranslations
 {
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $record = $this->getRecord();
+
+        foreach ($record->translations as $translation) {
+            $data[$translation->locale] = $translation->only($record->translatedAttributes);
+        }
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return Translatable::clean($data, (new (static::getModel()))->getTranslatableAttributes());
+        return $this->withoutEmptyLocales($data);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data = $this->withoutEmptyLocales($data);
         $record = $this->getRecord();
-        $data = Translatable::clean($data, $record->getTranslatableAttributes());
 
-        // setTranslations() only merges, so explicitly forget locales the editor cleared.
-        foreach ($record->getTranslatableAttributes() as $attribute) {
-            foreach (array_keys($record->getTranslations($attribute)) as $locale) {
-                if (array_key_exists($attribute, $data) && ! array_key_exists($locale, $data[$attribute] ?? [])) {
-                    $record->forgetTranslation($attribute, $locale);
-                }
+        // A locale the editor emptied completely is removed, so the site falls back to the fallback locale.
+        foreach (array_keys(config('app.locales')) as $locale) {
+            if (! isset($data[$locale]) && $record->hasTranslation($locale)) {
+                $record->deleteTranslations($locale);
+            }
+        }
+
+        return $data;
+    }
+
+    private function withoutEmptyLocales(array $data): array
+    {
+        foreach (array_keys(config('app.locales')) as $locale) {
+            if (isset($data[$locale]) && ! array_filter($data[$locale], fn ($value) => filled($value))) {
+                unset($data[$locale]);
             }
         }
 

@@ -29,6 +29,7 @@
                 </div>
             @else
                 @php($r = $plan->result)
+                @php($newTitles = collect($r['new_dishes'] ?? [])->map(fn ($d) => \App\Models\Dish::normalizeTitle($d['title'])))
 
                 @if ($plan->dishes_pending > 0)
                     <div data-plan-status="{{ route('plan.status', $plan) }}" data-pending="{{ $plan->dishes_pending }}"
@@ -79,7 +80,7 @@
                                                                 <span class="chip normal-case">✨ {{ __('site.plan.new_recipe') }}</span>
                                                             @endif
                                                         </a>
-                                                    @elseif (empty($meal['recipe_slug']) && $plan->dishes_pending > 0)
+                                                    @elseif ($plan->dishes_pending > 0 && $newTitles->contains(\App\Models\Dish::normalizeTitle($meal['title'])))
                                                         <p class="mt-2 flex items-center gap-2 text-xs text-muted">
                                                             <span class="h-3 w-3 animate-spin rounded-full border-2 border-brand-light border-t-brand"></span>
                                                             {{ __('site.plan.recipe_cooking') }}

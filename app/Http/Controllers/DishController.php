@@ -18,7 +18,7 @@ class DishController extends Controller
             ->with('category')
             ->when($request->category, fn ($q, $slug) => $q->whereRelation('category', 'slug', $slug))
             ->when($request->diet, fn ($q, $slug) => $q->whereRelation('diets', 'slug', $slug))
-            ->when($request->q, fn ($q, $term) => $q->where('name->'.$locale, 'like', '%'.$term.'%'))
+            ->when($request->q, fn ($q, $term) => $q->whereTranslationLike('name', '%'.$term.'%', $locale))
             ->when($request->max_kcal, fn ($q, $kcal) => $q->where('calories', '<=', (int) $kcal))
             ->when($request->sort === 'protein', fn ($q) => $q->orderByDesc('protein'), fn ($q) => $q->orderBy('calories'))
             ->paginate(12)

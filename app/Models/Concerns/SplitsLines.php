@@ -12,7 +12,7 @@ trait SplitsLines
     public function lines(string $attribute): array
     {
         return array_values(array_filter(
-            array_map('trim', preg_split('/\R/u', (string) $this->getTranslation($attribute, app()->getLocale()))),
+            array_map('trim', preg_split('/\R/u', (string) $this->{$attribute})),
             fn (string $line) => $line !== '',
         ));
     }

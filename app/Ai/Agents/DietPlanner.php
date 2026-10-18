@@ -2,26 +2,26 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Contracts\StructuredTask;
 use App\Models\DietPlanRequest;
 use App\Models\Dish;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Attributes\MaxTokens;
-use Laravel\Ai\Attributes\Timeout;
-use Laravel\Ai\Contracts\Agent;
-use Laravel\Ai\Contracts\HasStructuredOutput;
-use Laravel\Ai\Promptable;
-use Stringable;
 
-// No temperature: Claude Opus 5.5 / Sonnet 5.5 reject sampling parameters.
-#[MaxTokens(12000)]
-#[Timeout(300)]
-class DietPlanner implements Agent, HasStructuredOutput
+class DietPlanner implements StructuredTask
 {
-    use Promptable;
-
     public function __construct(public DietPlanRequest $request, public int $newDishes = 6) {}
 
-    public function instructions(): Stringable|string
+    public function maxTokens(): int
+    {
+        return 16000;
+    }
+
+    public function input(): string
+    {
+        return $this->brief();
+    }
+
+    public function instructions(): string
     {
         $language = config('app.locales.'.$this->request->locale, 'English');
 
@@ -29,7 +29,7 @@ class DietPlanner implements Agent, HasStructuredOutput
             ->map(fn (Dish $d) => sprintf(
                 '- %s | %s | %s | %d kcal, P%s F%s C%s',
                 $d->slug,
-                $d->getTranslation('name', 'en'),
+                $d->translate('en', true)?->name,
                 $d->category?->slug ?? '-',
                 $d->calories, $d->protein, $d->fat, $d->carbs,
             ))->implode("\n");
@@ -43,15 +43,30 @@ class DietPlanner implements Agent, HasStructuredOutput
         - Respect allergies and dislikes absolutely. Never include allergens.
         - Keep daily calories within ±5% of the target and hit the macro targets you state.
         - Use common, affordable foods. Give gram amounts where useful.
-        - Use recipes from the site catalogue where they fit and put their slug into "recipe_slug".
-        - Also invent up to {$this->newDishes} NEW original dishes that are NOT in the catalogue (different names and concepts);
-          for them set "recipe_slug" to an empty string. The site will turn them into full recipes, so give each new dish
-          a specific, appetizing title and reuse the exact same title if it repeats during the week.
+        - Put EXACTLY {$this->newDishes} brand-new original dishes into "new_dishes". Each must be a dish the site does not have yet:
+          its title and concept must differ from every catalogue recipe and every name in "Existing dish names" below,
+          and from each other. Make titles specific and appetizing.
+        - Use every new dish in at least one meal with exactly the same title and "recipe_slug" = "".
+        - For the remaining meals use catalogue recipes where they fit (put their slug into "recipe_slug"),
+          otherwise simple meals with "recipe_slug" = "".
         - Never give medical diagnoses; add a short note recommending a doctor visit for chronic conditions, pregnancy or BMI < 18.5 / > 35.
 
         Site recipe catalogue (slug | name | category | nutrition per serving):
         {$catalog}
+
+        Existing dish names (do not reuse for new dishes):
+        {$this->existingNames()}
         PROMPT;
+    }
+
+    /**
+     * Names of all dishes (incl. unpublished AI drafts), newest first, capped to keep the prompt small.
+     * AiDishCreator re-checks uniqueness against the whole table anyway.
+     */
+    private function existingNames(): string
+    {
+        return Dish::query()->latest('id')->limit(500)->get(['name'])
+            ->map(fn (Dish $d) => $d->translate('en', true)?->name)->filter()->implode('; ');
     }
 
     public function schema(JsonSchema $schema): array
@@ -67,7 +82,19 @@ class DietPlanner implements Agent, HasStructuredOutput
             'recipe_slug' => $schema->string()->required(),
         ])->withoutAdditionalProperties();
 
+        $newDish = $schema->object([
+            'type' => $schema->string()->enum(['breakfast', 'snack', 'lunch', 'dinner'])->required(),
+            'title' => $schema->string()->required(),
+            'description' => $schema->string()->description('Concept, main ingredients and cooking method in one or two sentences.')->required(),
+            'calories' => $schema->integer()->required(),
+            'protein' => $schema->number()->required(),
+            'fat' => $schema->number()->required(),
+            'carbs' => $schema->number()->required(),
+        ])->withoutAdditionalProperties();
+
         return [
+            'new_dishes' => $schema->array()->items($newDish)
+                ->description("Exactly {$this->newDishes} brand-new dishes.")->required(),
             'summary' => $schema->string()->description('2–4 sentence overview of the strategy.')->required(),
             'daily_calories' => $schema->integer()->required(),
             'protein_g' => $schema->integer()->required(),
@@ -103,7 +130,7 @@ class DietPlanner implements Agent, HasStructuredOutput
             'Activity level' => $r->activity,
             'Goal' => $r->goal,
             'Calculated calorie target (Mifflin–St Jeor)' => $r->targetCalories().' kcal',
-            'Preferred diet style' => $r->preferredDiet?->getTranslation('name', 'en') ?? 'no preference',
+            'Preferred diet style' => $r->preferredDiet?->translate('en', true)?->name ?? 'no preference',
             'Meals per day' => $r->meals_per_day,
             'Food preferences' => $r->preferences ?: '—',
             'Allergies / intolerances / dislikes' => $r->allergies ?: 'none',

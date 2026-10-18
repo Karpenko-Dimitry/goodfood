@@ -36,14 +36,15 @@ return [
     ],
 
     /*
-    | App\Services\Ai\NutritionAi. Provider/model null = defaults from config/ai.php.
+    | App\Services\Ai\NutritionAi: text through Claude (anthropic-ai/sdk), photos through OpenAI (openai-php/client).
     */
     'ai' => [
-        'text_provider' => env('AI_TEXT_PROVIDER'),
-        'plan_model' => env('AI_DIET_MODEL'),
-        'dish_model' => env('AI_DISH_MODEL', env('AI_DIET_MODEL')),
-        'image_provider' => env('AI_IMAGE_PROVIDER'),
-        'image_model' => env('AI_IMAGE_MODEL'),
+        'anthropic_key' => env('ANTHROPIC_API_KEY'),
+        'openai_key' => env('OPENAI_API_KEY'),
+        'plan_model' => env('AI_DIET_MODEL', 'claude-opus-5-5'),
+        'dish_model' => env('AI_DISH_MODEL', env('AI_DIET_MODEL', 'claude-opus-5-5')),
+        'effort' => env('AI_EFFORT', 'medium'),
+        'image_model' => env('AI_IMAGE_MODEL', 'gpt-image-1'),
         'images_enabled' => (bool) env('AI_IMAGES_ENABLED', true),
         'new_dishes_per_plan' => (int) env('AI_NEW_DISHES_PER_PLAN', 6),
         'publish_new_dishes' => (bool) env('AI_PUBLISH_NEW_DISHES', true),

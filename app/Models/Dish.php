@@ -5,19 +5,75 @@ namespace App\Models;
 use App\Models\Concerns\HasImage;
 use App\Models\Concerns\SplitsLines;
 use Illuminate\Database\Eloquent\Builder;
+use Astrotomic\Translatable\Contracts\Translatable as TranslatableContract;
+use Astrotomic\Translatable\Translatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Str;
-use Spatie\Translatable\HasTranslations;
 
-class Dish extends Model
+/**
+ * @property int $id
+ * @property int|null $dish_category_id
+ * @property string $slug
+ * @property string|null $name
+ * @property string|null $excerpt
+ * @property string|null $ingredients
+ * @property string|null $instructions
+ * @property string|null $image
+ * @property string|null $image_url
+ * @property string|null $image_prompt
+ * @property int $calories
+ * @property float $protein
+ * @property float $fat
+ * @property float $carbs
+ * @property int|null $prep_minutes
+ * @property int|null $cook_minutes
+ * @property int $servings
+ * @property bool $is_featured
+ * @property bool $is_published
+ * @property string $source
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\DishCategory|null $category
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Diet> $diets
+ * @property-read int|null $diets_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\DishTranslation> $translations
+ * @method static Builder<static>|Dish newModelQuery()
+ * @method static Builder<static>|Dish newQuery()
+ * @method static Builder<static>|Dish published()
+ * @method static Builder<static>|Dish query()
+ * @method static Builder<static>|Dish whereCalories($value)
+ * @method static Builder<static>|Dish whereCarbs($value)
+ * @method static Builder<static>|Dish whereCookMinutes($value)
+ * @method static Builder<static>|Dish whereCreatedAt($value)
+ * @method static Builder<static>|Dish whereDishCategoryId($value)
+ * @method static Builder<static>|Dish whereFat($value)
+ * @method static Builder<static>|Dish whereId($value)
+ * @method static Builder<static>|Dish whereImage($value)
+ * @method static Builder<static>|Dish whereImagePrompt($value)
+ * @method static Builder<static>|Dish whereImageUrl($value)
+ * @method static Builder<static>|Dish whereIsFeatured($value)
+ * @method static Builder<static>|Dish whereIsPublished($value)
+ * @method static Builder<static>|Dish wherePrepMinutes($value)
+ * @method static Builder<static>|Dish whereProtein($value)
+ * @method static Builder<static>|Dish whereServings($value)
+ * @method static Builder<static>|Dish whereSlug($value)
+ * @method static Builder<static>|Dish whereSource($value)
+ * @method static Builder<static>|Dish whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
+class Dish extends Model implements TranslatableContract
 {
-    use HasImage, HasTranslations, SplitsLines;
+    use HasImage, SplitsLines, Translatable;
 
     protected $guarded = [];
 
-    public array $translatable = ['name', 'excerpt', 'ingredients', 'instructions'];
+    /** Stored per locale in dish_translations. */
+    public array $translatedAttributes = ['name', 'excerpt', 'ingredients', 'instructions'];
+
+    /** Translations are needed on every render; avoid N+1. */
+    protected $with = ['translations'];
 
     protected function casts(): array
     {
@@ -70,9 +126,10 @@ class Dish extends Model
     {
         $needle = static::normalizeTitle($title);
 
-        return static::query()->get(['id', 'slug', 'name'])
-            ->first(fn (self $dish) => collect($dish->getTranslations('name'))
-                ->contains(fn ($name) => static::normalizeTitle((string) $name) === $needle));
+        $match = DishTranslation::query()->whereNotNull('name')->get(['dish_id', 'name'])
+            ->first(fn (DishTranslation $t) => static::normalizeTitle($t->name) === $needle);
+
+        return $match ? static::find($match->dish_id) : null;
     }
 
     public function totalMinutes(): int

@@ -4,10 +4,11 @@ namespace Tests\Feature;
 
 use App\Ai\Agents\DietPlanner;
 use App\Ai\Agents\DishChef;
+use App\Ai\Testing\FakeAi;
 use App\Jobs\CreateAiDish;
 use App\Services\Ai\DishIdea;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Ai\Image;
 use App\Models\Diet;
 use App\Models\DietPlanRequest;
 use App\Models\Dish;
@@ -19,17 +20,25 @@ class SiteTest extends TestCase
 {
     use RefreshDatabase;
 
+    private FakeAi $ai;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed(DatabaseSeeder::class);
+
+        // Never hit a real AI provider from tests: unscripted prompts throw.
+        $this->ai = FakeAi::install($this->app);
+        Storage::fake('public');
     }
 
     public function test_root_redirects_to_a_locale(): void
     {
-        $this->get('/', ['Accept-Language' => 'uk-UA,uk;q=0.9'])->assertRedirect('/uk');
-        $this->get('/', ['Accept-Language' => 'de-DE'])->assertRedirect('/ru');
+        // Ukrainian is the default language whatever the browser prefers.
+        $this->get('/', ['Accept-Language' => 'en-US,en;q=0.9'])->assertRedirect('/uk');
+        $this->get('/')->assertRedirect('/uk');
+        $this->get('/uk')->assertOk()->assertSee('<link rel="alternate" hreflang="x-default" href="'.url('/uk').'">', false);
     }
 
     public function test_public_pages_render_in_every_locale(): void
@@ -46,7 +55,25 @@ class SiteTest extends TestCase
                     ->assertSee('<html lang="'.$locale.'"', false);
             }
 
-            $this->get("/{$locale}/recipes/{$dish->slug}")->assertSee($dish->getTranslation('name', $locale));
+            $this->get("/{$locale}/recipes/{$dish->slug}")->assertSee($dish->translate($locale)->name);
+        }
+    }
+
+    public function test_production_ignores_a_stray_vite_hot_file(): void
+    {
+        $hot = public_path('hot');
+        $existed = is_file($hot);
+        $existed || file_put_contents($hot, 'http://[::1]:5173');
+
+        try {
+            $this->app['env'] = 'production';
+            (new \App\Providers\AppServiceProvider($this->app))->boot();
+
+            $this->get('/en')->assertOk()
+                ->assertDontSee('[::1]:5173', false)
+                ->assertSee('/build/assets/', false);
+        } finally {
+            $existed || unlink($hot);
         }
     }
 
@@ -81,10 +108,8 @@ class SiteTest extends TestCase
 
     public function test_ai_plan_creates_new_dishes_with_recipes_and_photos(): void
     {
-        Storage::fake('public');
-        Image::fake();
-        DietPlanner::fake([$this->fakePlan()]);
-        DishChef::fake(fn (string $prompt) => $this->fakeRecipe(str($prompt)->after('Dish title: ')->before("\n")->toString()));
+        $this->ai->respond(DietPlanner::class, $this->fakePlan())
+            ->respond(DishChef::class, fn (DishChef $task) => $this->fakeRecipe($task->idea->title));
 
         $response = $this->post('/en/ai-plan', [
             'gender' => 'female', 'age' => 32, 'height_cm' => 168, 'weight_kg' => 72,
@@ -101,8 +126,8 @@ class SiteTest extends TestCase
         $this->assertSame('completed', $plan->status);
         $this->assertSame(0, $plan->dishes_pending);
 
-        DietPlanner::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'peanuts') && str_contains($prompt->prompt, 'Mediterranean'));
-        DishChef::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'peanuts'));
+        $this->ai->assertPrompted(DietPlanner::class, fn (DietPlanner $t) => str_contains($t->input(), 'peanuts') && str_contains($t->input(), 'Mediterranean'));
+        $this->ai->assertPrompted(DishChef::class, fn (DishChef $t) => str_contains($t->input(), 'peanuts'));
 
         // 3 distinct meals without a catalogue recipe -> 3 new dishes, the catalogue dish is only linked.
         $created = Dish::where('source', 'ai')->get();
@@ -111,11 +136,12 @@ class SiteTest extends TestCase
         $this->assertTrue($plan->dishes()->where('slug', 'salmon-quinoa-bowl')->exists());
 
         $dish = $created->firstWhere('slug', 'ai-oats');
-        $this->assertSame('Овсянка AI', $dish->getTranslation('name', 'ru'));
-        $this->assertSame("Oats — 60 g\nMilk — 200 ml", $dish->getTranslation('ingredients', 'en'));
+        $this->assertSame('Овсянка AI', $dish->translate('ru')->name);
+        $this->assertSame("Oats — 60 g\nMilk — 200 ml", $dish->translate('en')->ingredients);
+        $this->assertEqualsCanonicalizing(['ru', 'en', 'uk'], $dish->translations->pluck('locale')->all());
         $this->assertTrue($dish->diets()->where('slug', 'mediterranean')->exists());
         Storage::disk('public')->assertExists($dish->image);
-        Image::assertGenerated(fn ($prompt) => str_contains($prompt->prompt, 'A bowl of Oats'));
+        $this->ai->assertImageGenerated(fn (string $prompt) => str_contains($prompt, 'A bowl of Oats'));
 
         $this->get("/en/ai-plan/{$plan->uuid}")
             ->assertOk()
@@ -130,11 +156,11 @@ class SiteTest extends TestCase
     public function test_ai_failures_do_not_break_the_plan(): void
     {
         $this->withoutExceptionHandling();
-        Image::fake(fn () => throw new \RuntimeException('You have not started a billing plan yet'));
-        DietPlanner::fake([$this->fakePlan()]);
-        DishChef::fake(fn (string $prompt) => str_contains($prompt, 'Dish title: Yoghurt')
-            ? throw new \RuntimeException('Overloaded')
-            : $this->fakeRecipe(str($prompt)->after('Dish title: ')->before("\n")->toString()));
+        $this->ai->images(fn () => throw new \RuntimeException('You have not started a billing plan yet'))
+            ->respond(DietPlanner::class, $this->fakePlan())
+            ->respond(DishChef::class, fn (DishChef $task) => $task->idea->title === 'Yoghurt'
+                ? throw new \RuntimeException('Overloaded')
+                : $this->fakeRecipe($task->idea->title));
 
         $this->post('/en/ai-plan', [
             'gender' => 'male', 'age' => 40, 'height_cm' => 180, 'weight_kg' => 90,
@@ -148,14 +174,71 @@ class SiteTest extends TestCase
         $this->assertNull(Dish::where('source', 'ai')->first()->image); // photo failed -> placeholder
     }
 
-    public function test_existing_dish_is_not_generated_twice(): void
+    public function test_taken_name_makes_ai_create_a_different_unique_dish(): void
     {
-        DishChef::fake()->preventStrayPrompts();
+        $recipes = [
+            array_merge($this->fakeRecipe('X'), ['name' => ['ru' => 'Что-то', 'en' => 'Baked Salmon with Asparagus', 'uk' => 'Щось']]),
+            $this->fakeRecipe('Lemon Cod'),
+        ];
+        $this->ai->respond(DishChef::class, ...$recipes);
 
+        // The idea itself already exists in the catalogue.
         CreateAiDish::dispatch(new DishIdea('  baked SALMON with asparagus! '));
 
-        DishChef::assertNotPrompted(fn () => true);
-        $this->assertSame(0, Dish::where('source', 'ai')->count());
+        $this->ai->assertPromptedTimes(DishChef::class, 2);
+        $this->ai->assertPrompted(DishChef::class, fn (DishChef $t) => str_contains($t->input(), 'ALREADY TAKEN')
+            && str_contains($t->input(), 'Baked Salmon with Asparagus'));
+
+        $dish = Dish::where('source', 'ai')->sole();
+        $this->assertSame('AI Lemon Cod', $dish->translate('en')->name);
+        $this->assertSame(1, Dish::where('slug', 'baked-salmon-greens')->count());
+    }
+
+    public function test_every_plan_adds_new_dishes(): void
+    {
+        $n = 0;
+        $this->ai->respond(DietPlanner::class, $this->fakePlan());
+        $this->ai->respond(DishChef::class, function () use (&$n) {
+            $n++;
+
+            return $this->fakeRecipe("Unique {$n}");
+        });
+
+        $form = ['gender' => 'male', 'age' => 40, 'height_cm' => 180, 'weight_kg' => 90, 'activity' => 'light', 'goal' => 'lose', 'meals_per_day' => 4];
+        $this->post('/en/ai-plan', $form);
+        $this->post('/en/ai-plan', $form);   // same meal ideas again -> still new dishes
+
+        $this->assertSame(6, Dish::where('source', 'ai')->count());
+        $this->assertSame(6, \App\Models\DishTranslation::whereIn('dish_id', Dish::where('source', 'ai')->pluck('id'))
+            ->where('locale', 'en')->distinct()->count('name'));
+    }
+
+    public function test_seed_images_are_downloaded_to_local_storage(): void
+    {
+        Storage::fake('public');
+        Http::preventStrayRequests();
+        $broken = true;
+        Http::fake(function ($request) use (&$broken) {
+            return $broken && str_contains($request->url(), 'photo-1546069901-ba9599a7e63c')
+                ? Http::response('', 404)
+                : Http::response('jpeg-bytes', 200, ['Content-Type' => 'image/jpeg']);
+        });
+
+        $this->artisan('images:localize')->assertFailed();   // one broken URL is reported, the rest stored
+
+        $dish = Dish::where('slug', 'avocado-egg-toast')->first();
+        $this->assertSame('dishes/avocado-egg-toast.jpg', $dish->image);
+        Storage::disk('public')->assertExists($dish->image);
+        $this->assertStringEndsWith('/storage/dishes/avocado-egg-toast.jpg', $dish->imageUrl());
+        $this->assertNotNull($dish->image_url);   // source kept
+
+        $this->assertSame('diets/keto.jpg', Diet::where('slug', 'keto')->value('image'));
+        $this->assertNull(Dish::where('slug', 'salmon-quinoa-bowl')->value('image'));   // 404 -> still hotlinked
+
+        // Second run only retries what is missing.
+        $broken = false;
+        $this->artisan('images:localize')->assertSuccessful();
+        $this->assertSame('dishes/salmon-quinoa-bowl.jpg', Dish::where('slug', 'salmon-quinoa-bowl')->value('image'));
     }
 
     public function test_ai_plan_validation(): void
@@ -189,16 +272,49 @@ class SiteTest extends TestCase
     {
         $this->actingAs(\App\Models\User::first());
         $dish = Dish::where('slug', 'salmon-quinoa-bowl')->first();
+        $edit = fn () => \Livewire\Livewire::test(\App\Filament\Resources\Dishes\Pages\EditDish::class, ['record' => $dish->getRouteKey()]);
 
-        \Livewire\Livewire::test(\App\Filament\Resources\Dishes\Pages\EditDish::class, ['record' => $dish->getRouteKey()])
-            ->fillForm(['name.en' => 'Salmon Power Bowl', 'excerpt.uk' => ''])
+        $edit()->assertFormSet(['ru.name' => 'Боул с лососем и киноа', 'en.name' => 'Salmon & Quinoa Bowl'])
+            ->fillForm(['en.name' => 'Salmon Power Bowl', 'uk.excerpt' => ''])
             ->call('save')
             ->assertHasNoFormErrors();
 
-        $dish->refresh();
-        $this->assertSame('Salmon Power Bowl', $dish->getTranslation('name', 'en'));
-        $this->assertSame('Боул с лососем и киноа', $dish->getTranslation('name', 'ru'));
-        $this->assertArrayNotHasKey('uk', $dish->getTranslations('excerpt'));   // empty locale dropped -> falls back
+        $dish = $dish->fresh();
+        $this->assertSame('Salmon Power Bowl', $dish->translate('en')->name);
+        $this->assertSame('Боул с лососем и киноа', $dish->translate('ru')->name);
+        $this->assertNull($dish->translate('uk')->excerpt);
+
+        app()->setLocale('uk');
+        $this->assertSame($dish->translate('en')->excerpt, $dish->excerpt);   // empty field falls back to "en"
+        app()->setLocale('ru');
+
+        // The default language (uk) is required.
+        $edit()->fillForm(['uk.name' => ''])->call('save')->assertHasFormErrors(['uk.name' => 'required']);
+
+        // Clearing every field of another locale removes that translation.
+        $edit()->fillForm(['ru' => ['name' => '', 'excerpt' => '', 'ingredients' => '', 'instructions' => '']])
+            ->call('save')
+            ->assertHasNoFormErrors();
+        $this->assertFalse($dish->fresh()->hasTranslation('ru'));
+    }
+
+    public function test_translation_migration_round_trips_data(): void
+    {
+        $before = Dish::where('slug', 'pumpkin-cream-soup')->first()->translations
+            ->mapWithKeys(fn ($t) => [$t->locale => $t->only(['name', 'excerpt', 'ingredients', 'instructions'])])->all();
+
+        // down(): back to JSON columns; up(): into translation tables again.
+        $path = 'database/migrations/2026_10_18_120000_move_translations_to_translation_tables.php';
+        $this->artisan('migrate:rollback', ['--path' => $path])->assertSuccessful();
+        $json = json_decode(\DB::table('dishes')->where('slug', 'pumpkin-cream-soup')->value('name'), true);
+        $this->assertSame($before['ru']['name'], $json['ru']);
+
+        $this->artisan('migrate', ['--path' => $path])->assertSuccessful();
+        $after = Dish::where('slug', 'pumpkin-cream-soup')->first()->translations
+            ->mapWithKeys(fn ($t) => [$t->locale => $t->only(['name', 'excerpt', 'ingredients', 'instructions'])])->all();
+
+        $this->assertEquals($before, $after);
+        $this->assertSame(\App\Models\Diet::count() * 3, \App\Models\DietTranslation::count());
     }
 
     private function fakeRecipe(string $title): array
@@ -236,6 +352,9 @@ class SiteTest extends TestCase
                     $meal('snack', 'Yoghurt', 220),
                     $meal('dinner', 'Chicken', 470),
                 ]])->all(),
+            'new_dishes' => collect(['Oats' => 'breakfast', 'Yoghurt' => 'snack', 'Chicken' => 'dinner'])
+                ->map(fn ($type, $title) => ['type' => $type, 'title' => $title, 'description' => 'New', 'calories' => 400, 'protein' => 20, 'fat' => 10, 'carbs' => 40])
+                ->values()->all(),
             'shopping_list' => ['Salmon', 'Quinoa'],
             'tips' => ['Drink water'],
             'warning' => '',

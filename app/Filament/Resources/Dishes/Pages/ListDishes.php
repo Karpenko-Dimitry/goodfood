@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Dishes\Pages;
 use App\Filament\Resources\Dishes\DishResource;
 use App\Jobs\CreateAiDish;
 use App\Models\Diet;
-use App\Models\Dish;
 use App\Services\Ai\DishIdea;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -27,7 +26,7 @@ class ListDishes extends ListRecords
                 ->label('Создать блюдо через AI')
                 ->icon(Heroicon::OutlinedSparkles)
                 ->color('gray')
-                ->modalDescription('ИИ напишет рецепт на всех языках с КБЖУ, сохранит блюдо и сгенерирует фото. Обычно это занимает до минуты — блюдо появится в списке.')
+                ->modalDescription('ИИ напишет рецепт на всех языках с КБЖУ, сохранит блюдо и сгенерирует фото. Если такое название уже есть, будет создано другое, уникальное блюдо. Обычно это занимает до минуты.')
                 ->schema([
                     TextInput::make('title')->label('Название или идея')->required()->maxLength(150)
                         ->placeholder('Например: тёплый салат с киноа и тыквой'),
@@ -39,12 +38,6 @@ class ListDishes extends ListRecords
                         ->options(fn () => Diet::published()->get()->mapWithKeys(fn (Diet $d) => [$d->slug => $d->name])),
                 ])
                 ->action(function (array $data) {
-                    if ($existing = Dish::findByTitle($data['title'])) {
-                        Notification::make()->warning()->title("Такое блюдо уже есть: {$existing->name}")->send();
-
-                        return;
-                    }
-
                     CreateAiDish::dispatch(new DishIdea(
                         title: $data['title'],
                         description: (string) $data['description'],

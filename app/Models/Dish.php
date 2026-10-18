@@ -125,6 +125,24 @@ class Dish extends Model implements TranslatableContract
     }
 
     /**
+     * Names of the latest dishes (English, or another locale when English is missing), for AI prompts.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    public static function recentNames(int $limit = 500, string $locale = 'en'): \Illuminate\Support\Collection
+    {
+        $ids = static::query()->latest('id')->limit($limit)->pluck('id');
+
+        return DishTranslation::query()
+            ->whereIn('dish_id', $ids)
+            ->whereNotNull('name')
+            ->get(['dish_id', 'locale', 'name'])
+            ->groupBy('dish_id')
+            ->map(fn ($translations) => ($translations->firstWhere('locale', $locale) ?? $translations->first())->name)
+            ->values();
+    }
+
+    /**
      * A dish whose name in any locale matches the given title.
      */
     public static function findByTitle(string $title): ?self

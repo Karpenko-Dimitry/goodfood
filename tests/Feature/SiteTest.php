@@ -300,6 +300,92 @@ class SiteTest extends TestCase
         return (string) ob_get_clean();
     }
 
+    public function test_ai_prompts_list_existing_dishes(): void
+    {
+        $plan = DietPlanRequest::create([
+            'locale' => 'uk', 'gender' => 'female', 'age' => 30, 'height_cm' => 165, 'weight_kg' => 60,
+            'activity' => 'light', 'goal' => 'maintain',
+        ]);
+
+        $planner = (new DietPlanner($plan))->instructions();
+        $this->assertStringContainsString('Existing dish names (do not reuse for new dishes):', $planner);
+        $this->assertStringContainsString('Salmon & Quinoa Bowl', $planner);
+        $this->assertStringContainsString('salmon-quinoa-bowl | Salmon & Quinoa Bowl | lunch', $planner);
+
+        $chef = (new DishChef(new DishIdea('Lentil salad')))->instructions();
+        $this->assertStringContainsString('Baked Salmon with Asparagus', $chef);
+
+        $this->assertCount(Dish::count(), Dish::recentNames());
+    }
+
+    public function test_claude_misconfiguration_gives_a_clear_error(): void
+    {
+        $task = new DishChef(new DishIdea('Lentil salad'));
+        $claude = fn (?string $key) => new \App\Ai\Providers\ClaudeTextModel(new \Anthropic\Client(apiKey: $key ?? 'unused'), null, $key);
+
+        try {
+            $claude(null)->generate($task, 'claude-opus-5-5');
+            $this->fail('Expected an exception');
+        } catch (\App\Ai\AiResponseException $e) {
+            $this->assertStringContainsString('ANTHROPIC_API_KEY is not set', $e->getMessage());
+        }
+
+        $this->expectExceptionMessage('"gpt-4.1-mini" is not a Claude model');
+        $claude('sk-ant-test')->generate($task, 'gpt-4.1-mini');
+    }
+
+    public function test_openai_is_the_default_text_provider_with_strict_json_schema(): void
+    {
+        // setUp() swapped the providers for FakeAi: restore the real bindings to check the default.
+        $this->app->offsetUnset(\App\Ai\Contracts\TextModel::class);
+        (new \App\Providers\AppServiceProvider($this->app))->register();
+        $this->assertSame('openai', config('services.ai.text_provider'));
+        $this->assertInstanceOf(\App\Ai\Providers\OpenAiTextModel::class, $this->app->make(\App\Ai\Contracts\TextModel::class));
+
+        $recipe = $this->fakeRecipe('Lentil salad');
+        $client = new \OpenAI\Testing\ClientFake([
+            \OpenAI\Responses\Chat\CreateResponse::fake(['choices' => [['index' => 0, 'finish_reason' => 'stop',
+                'message' => ['role' => 'assistant', 'content' => json_encode($recipe)]]]]),
+            \OpenAI\Responses\Chat\CreateResponse::fake(['choices' => [['index' => 0, 'finish_reason' => 'length',
+                'message' => ['role' => 'assistant', 'content' => '{"name":']]]]),
+        ]);
+        $openai = new \App\Ai\Providers\OpenAiTextModel($client, 'sk-test');
+        $task = new DishChef(new DishIdea('Lentil salad'));
+
+        $this->assertSame($recipe, $openai->generate($task, 'gpt-4.1-mini'));
+
+        $client->chat()->assertSent(function (string $method, array $params) {
+            $schema = $params['response_format']['json_schema'];
+
+            return $method === 'create'
+                && $params['model'] === 'gpt-4.1-mini'
+                && $params['messages'][0]['role'] === 'system'
+                && str_contains($params['messages'][1]['content'], 'Dish title: Lentil salad')
+                && $schema['strict'] === true
+                && $schema['name'] === 'dish_chef'
+                && $schema['schema']['additionalProperties'] === false
+                && in_array('ingredients', $schema['schema']['required'], true);
+        });
+
+        $this->expectExceptionMessage('Output hit max_completion_tokens');
+        $openai->generate($task, 'gpt-4.1-mini');
+    }
+
+    public function test_openai_misconfiguration_gives_a_clear_error(): void
+    {
+        $task = new DishChef(new DishIdea('Lentil salad'));
+
+        try {
+            (new \App\Ai\Providers\OpenAiTextModel(new \OpenAI\Testing\ClientFake, null))->generate($task, 'gpt-4.1-mini');
+            $this->fail('Expected an exception');
+        } catch (\App\Ai\AiResponseException $e) {
+            $this->assertStringContainsString('OPENAI_API_KEY is not set', $e->getMessage());
+        }
+
+        $this->expectExceptionMessage('"claude-opus-5-5" is not an OpenAI model');
+        (new \App\Ai\Providers\OpenAiTextModel(new \OpenAI\Testing\ClientFake, 'sk-test'))->generate($task, 'claude-opus-5-5');
+    }
+
     public function test_ai_plan_validation(): void
     {
         $this->from('/ru/ai-plan')->post('/ru/ai-plan', ['age' => 5])

@@ -28,6 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('DietCoach')
+            ->favicon(asset('favicon.svg'))
             ->colors([
                 'primary' => Color::hex('#417500'),
             ])

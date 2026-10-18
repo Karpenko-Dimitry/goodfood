@@ -65,8 +65,7 @@ class DietPlanner implements StructuredTask
      */
     private function existingNames(): string
     {
-        return Dish::query()->latest('id')->limit(500)->get(['name'])
-            ->map(fn (Dish $d) => $d->translate('en', true)?->name)->filter()->implode('; ');
+        return Dish::recentNames()->implode('; ');
     }
 
     public function schema(JsonSchema $schema): array

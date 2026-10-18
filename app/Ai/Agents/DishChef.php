@@ -39,8 +39,7 @@ class DishChef implements StructuredTask
     public function instructions(): string
     {
         $languages = collect(config('app.locales'))->map(fn ($name, $code) => "{$code} = {$name}")->implode(', ');
-        $existing = Dish::query()->latest('id')->limit(500)->get()
-            ->map(fn (Dish $d) => $d->translate('en', true)?->name)->filter()->implode('; ');
+        $existing = Dish::recentNames()->implode('; ');
 
         return <<<PROMPT
         You are a recipe developer and nutritionist for the DietCoach website.

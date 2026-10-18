@@ -42,6 +42,23 @@ class SeoTest extends TestCase
         }
     }
 
+    public function test_favicons_are_linked_and_present(): void
+    {
+        $html = $this->get('/uk')->assertOk()->getContent();
+
+        foreach (['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'site.webmanifest'] as $file) {
+            $this->assertStringContainsString(asset($file), $html);
+            $this->assertFileExists(public_path($file));
+            $this->assertGreaterThan(0, filesize(public_path($file)), $file);
+        }
+
+        $manifest = json_decode(file_get_contents(public_path('site.webmanifest')), true, flags: JSON_THROW_ON_ERROR);
+        foreach ($manifest['icons'] as $icon) {
+            [$width] = getimagesize(public_path(ltrim($icon['src'], '/')));
+            $this->assertSame((int) explode('x', $icon['sizes'])[0], $width, $icon['src']);
+        }
+    }
+
     public function test_recipe_page_has_valid_recipe_schema(): void
     {
         $dish = Dish::where('slug', 'salmon-quinoa-bowl')->first();

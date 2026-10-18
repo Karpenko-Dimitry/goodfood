@@ -13,10 +13,19 @@ use Illuminate\JsonSchema\JsonSchema;
  */
 class ClaudeTextModel implements TextModel
 {
-    public function __construct(private Client $client, private ?string $effort = null) {}
+    public function __construct(private Client $client, private ?string $effort = null, private ?string $apiKey = null) {}
 
     public function generate(StructuredTask $task, string $model): array
     {
+        // Fail with an actionable message instead of a bare 401/404 from the API.
+        if (blank($this->apiKey)) {
+            throw new AiResponseException('ANTHROPIC_API_KEY is not set (.env), or the config cache / queue worker still has the old value: run `php artisan config:clear` and restart the worker.');
+        }
+
+        if (! str_starts_with($model, 'claude-')) {
+            throw new AiResponseException("\"{$model}\" is not a Claude model: set AI_DIET_MODEL / AI_DISH_MODEL to e.g. claude-opus-5-5.");
+        }
+
         $schema = JsonSchema::object(fn ($s) => $task->schema($s))->withoutAdditionalProperties()->toArray();
 
         $message = $this->client->beta->messages->create(

@@ -3,7 +3,7 @@
 Сайт о питании по мотивам шаблона [Diet Coach #446293](https://demo.templatemonster.com/ru/demo/446293.html):
 коллекция популярных диет, рецепты с фото и КБЖУ, персональная диета от OpenAI и админка.
 
-**Стек:** PHP 8.2+ · Laravel 12 · Blade + Tailwind CSS 4 · Filament 5 (админка) · Claude через `anthropic-ai/sdk`, фото через `openai-php/client` ·
+**Стек:** PHP 8.2+ · Laravel 12 · Blade + Tailwind CSS 4 · Filament 5 (админка) · OpenAI (ChatGPT) через `openai-php/client` ·
 `spatie/laravel-translation-loader` (UI-строки в БД) · `astrotomic/laravel-translatable` (контент на 3 языках).
 
 ## Быстрый старт
@@ -23,19 +23,19 @@ composer run dev        # сервер + очередь + vite
 
 ## AI
 
-Вся работа с моделями — в сервисе `App\Services\Ai\NutritionAi`. Текст (план и рецепты) генерирует Claude через
-официальный `anthropic-ai/sdk` со структурированным JSON-ответом (`App\Ai\Providers\ClaudeTextModel`, при отказе
-модели включён серверный fallback), фото — OpenAI через `openai-php/client` (`OpenAiImageModel`; Claude изображения
-не генерирует). Провайдеры подключаются через контракты `App\Ai\Contracts\TextModel` / `ImageModel`.
+Вся работа с моделями — в сервисе `App\Services\Ai\NutritionAi`. План питания и рецепты генерирует OpenAI
+(ChatGPT) через `openai-php/client` со структурированным ответом по строгой JSON-схеме
+(`App\Ai\Providers\OpenAiTextModel`), фото — тоже OpenAI (`OpenAiImageModel`). Провайдеры подключаются через
+контракты `App\Ai\Contracts\TextModel` / `ImageModel`; при желании текст можно переключить на Claude
+(`AI_TEXT_PROVIDER=anthropic`, `ClaudeTextModel`).
 
 ```
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=            # только для фото; без ключа блюда сохраняются без фото
-AI_DIET_MODEL=claude-opus-5-5
-AI_DISH_MODEL=             # пусто = AI_DIET_MODEL
-AI_EFFORT=medium           # low | medium | high | xhigh | max
+OPENAI_API_KEY=
+AI_TEXT_PROVIDER=openai    # openai | anthropic
+AI_DIET_MODEL=gpt-4.1-mini # модель для плана
+AI_DISH_MODEL=             # модель для рецептов (пусто = AI_DIET_MODEL)
 AI_IMAGE_MODEL=gpt-image-1
-AI_IMAGES_ENABLED=true
+AI_IMAGES_ENABLED=true     # false — новые блюда сохраняются без фото
 AI_NEW_DISHES_PER_PLAN=6   # сколько новых уникальных блюд добавляется в базу при каждом плане
 AI_PUBLISH_NEW_DISHES=true # false — новые блюда скрыты до модерации в админке
 ```
@@ -85,6 +85,17 @@ Middleware `TrackVisitor` (группа `web` и панель `/admin`) вызы
 
 Настройки — `config/visitors.php` (`VISITORS_ONLINE_MINUTES=5`, `VISITORS_RETENTION_DAYS=90`). Старые записи удаляет
 `php artisan model:prune` по расписанию — на сервере нужен cron: `* * * * * php /path/to/artisan schedule:run`.
+
+## Иконки сайта
+
+Исходники — `resources/icons/favicon.svg` (вкладка браузера) и `resources/icons/app-icon.svg` (iPhone / Android).
+Пересобрать PNG/ICO (нужен ImageMagick):
+
+```bash
+for n in 16 32 48; do magick -background none -density 1200 resources/icons/favicon.svg -resize ${n}x${n} PNG32:/tmp/fav-$n.png; done
+magick /tmp/fav-16.png /tmp/fav-32.png /tmp/fav-48.png public/favicon.ico && cp resources/icons/favicon.svg public/
+for s in 180:apple-touch-icon 192:icon-192 512:icon-512; do magick -background none -density 1200 resources/icons/app-icon.svg -resize ${s%%:*}x${s%%:*} -strip PNG24:public/${s#*:}.png; done
+```
 
 ## Тесты
 

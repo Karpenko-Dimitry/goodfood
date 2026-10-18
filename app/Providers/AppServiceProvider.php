@@ -12,10 +12,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(\App\Ai\Contracts\TextModel::class, fn () => new \App\Ai\Providers\ClaudeTextModel(
-            new \Anthropic\Client(apiKey: config('services.ai.anthropic_key')),
-            config('services.ai.effort'),
-        ));
+        $this->app->bind(\App\Ai\Contracts\TextModel::class, fn () => match (config('services.ai.text_provider')) {
+            'anthropic' => new \App\Ai\Providers\ClaudeTextModel(
+                new \Anthropic\Client(apiKey: config('services.ai.anthropic_key')),
+                config('services.ai.effort'),
+                config('services.ai.anthropic_key'),
+            ),
+            default => new \App\Ai\Providers\OpenAiTextModel(
+                \OpenAI::client((string) config('services.ai.openai_key')),
+                config('services.ai.openai_key'),
+            ),
+        });
         $this->app->bind(\App\Ai\Contracts\ImageModel::class, fn () => new \App\Ai\Providers\OpenAiImageModel(config('services.ai.openai_key')));
         $this->app->singleton(\App\Services\Ai\NutritionAi::class, fn ($app) => new \App\Services\Ai\NutritionAi(
             $app->make(\App\Ai\Contracts\TextModel::class),

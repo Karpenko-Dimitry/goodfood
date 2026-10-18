@@ -50,7 +50,8 @@
                             {{ mb_strtoupper(mb_substr(auth()->user()->name, 0, 1)) }}
                         @endif
                     </button>
-                    <div class="invisible absolute right-0 top-full z-50 mt-1 min-w-52 bg-white py-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 group-data-[open]:visible group-data-[open]:opacity-100">
+                    {{-- Opens on click only (data-dropdown JS), not on hover. --}}
+                    <div class="invisible absolute right-0 top-full z-50 mt-1 min-w-52 bg-white py-2 opacity-0 shadow-xl transition group-data-[open]:visible group-data-[open]:opacity-100">
                         <p class="truncate border-b border-line px-4 pb-2 text-xs text-muted">{{ auth()->user()->email }}</p>
                         <a href="{{ route('account') }}" class="block px-4 py-2 text-sm hover:bg-brand-light">{{ __('site.auth.my_plans') }}</a>
                         @if (auth()->user()->is_admin)

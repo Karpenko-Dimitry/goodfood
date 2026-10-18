@@ -386,6 +386,17 @@ class SiteTest extends TestCase
         (new \App\Ai\Providers\OpenAiTextModel(new \OpenAI\Testing\ClientFake, 'sk-test'))->generate($task, 'claude-opus-5-5');
     }
 
+    public function test_fresh_ai_dish_shows_photo_pending(): void
+    {
+        $dish = Dish::where('slug', 'egg-bibimbap')->first();
+        $dish->forceFill(['source' => 'ai', 'image_url' => null])->save();
+
+        $this->get('/uk/recipes/egg-bibimbap')->assertOk()->assertSee('Фото генерується…');
+
+        $this->travel(31)->minutes();   // queue long gone: plain placeholder, no endless spinner
+        $this->get('/uk/recipes/egg-bibimbap')->assertOk()->assertDontSee('Фото генерується…');
+    }
+
     public function test_ai_plan_validation(): void
     {
         $this->from('/ru/ai-plan')->post('/ru/ai-plan', ['age' => 5])

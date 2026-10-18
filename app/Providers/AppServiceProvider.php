@@ -23,7 +23,10 @@ class AppServiceProvider extends ServiceProvider
                 config('services.ai.openai_key'),
             ),
         });
-        $this->app->bind(\App\Ai\Contracts\ImageModel::class, fn () => new \App\Ai\Providers\OpenAiImageModel(config('services.ai.openai_key')));
+        $this->app->bind(\App\Ai\Contracts\ImageModel::class, fn () => new \App\Ai\Providers\OpenAiImageModel(
+            config('services.ai.openai_key'),
+            config('services.ai.image_quality'),
+        ));
         $this->app->singleton(\App\Services\Ai\NutritionAi::class, fn ($app) => new \App\Services\Ai\NutritionAi(
             $app->make(\App\Ai\Contracts\TextModel::class),
             $app->make(\App\Ai\Contracts\ImageModel::class),

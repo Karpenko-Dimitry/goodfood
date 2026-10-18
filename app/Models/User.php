@@ -49,6 +49,8 @@ class User extends Authenticatable implements FilamentUser
         'name',
         'email',
         'password',
+        'google_id',
+        'avatar',
     ];
 
     /**
@@ -56,6 +58,11 @@ class User extends Authenticatable implements FilamentUser
      *
      * @var list<string>
      */
+    /** New users are never administrators (the attribute is unset until the model is reloaded). */
+    protected $attributes = [
+        'is_admin' => false,
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',
@@ -71,14 +78,39 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_admin' => 'boolean',
         ];
     }
 
     /**
-     * There is no public registration, so every user is an administrator.
+     * Site visitors can register; only administrators may enter /admin.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        return (bool) $this->is_admin;
+    }
+
+    public function dietPlans(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(DietPlanRequest::class)->latest();
+    }
+
+    /** Latest browser of this user recorded by VisitorTracker (for "last seen"). */
+    public function lastVisit(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Visitor::class)->latestOfMany('last_seen_at');
+    }
+
+    public function hasPassword(): bool
+    {
+        return filled($this->getAuthPassword());
+    }
+
+    /**
+     * Password reset link in the user's site language (routes are /{locale}/...).
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new \App\Notifications\ResetPasswordNotification($token, app()->getLocale()));
     }
 }

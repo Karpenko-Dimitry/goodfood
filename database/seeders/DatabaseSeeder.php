@@ -13,7 +13,7 @@ class DatabaseSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@dietcoach.test'],
             ['name' => 'Admin', 'password' => 'password'],
-        );
+        )->forceFill(['is_admin' => true])->save();
 
         $this->call([
             DietSeeder::class,

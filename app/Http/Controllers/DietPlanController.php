@@ -41,6 +41,7 @@ class DietPlanController extends Controller
         ]);
 
         $planRequest = DietPlanRequest::create($data + [
+            'user_id' => $request->user()?->id,
             'locale' => app()->getLocale(),
             'ip' => $request->ip(),
         ]);

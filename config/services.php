@@ -47,6 +47,7 @@ return [
         'dish_model' => env('AI_DISH_MODEL', env('AI_DIET_MODEL', 'gpt-4.1-mini')),
         'effort' => env('AI_EFFORT', 'medium'),   // Claude only
         'image_model' => env('AI_IMAGE_MODEL', 'gpt-image-1'),
+        'image_quality' => env('AI_IMAGE_QUALITY', 'medium'),   // gpt-image-*: low | medium | high
         'images_enabled' => (bool) env('AI_IMAGES_ENABLED', true),
         'new_dishes_per_plan' => (int) env('AI_NEW_DISHES_PER_PLAN', 6),
         'publish_new_dishes' => (bool) env('AI_PUBLISH_NEW_DISHES', true),
@@ -56,6 +57,13 @@ return [
     'seo' => [
         'google_verification' => env('GOOGLE_SITE_VERIFICATION'),
         'bing_verification' => env('BING_SITE_VERIFICATION'),
+    ],
+
+    // Sign in with Google (laravel/socialite). Redirect URI to register in Google Cloud Console: {APP_URL}/auth/google/callback
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
 ];

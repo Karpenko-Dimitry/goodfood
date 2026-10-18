@@ -89,6 +89,11 @@ class DietPlanRequest extends Model
         return 'uuid';
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function preferredDiet(): BelongsTo
     {
         return $this->belongsTo(Diet::class, 'preferred_diet_id');

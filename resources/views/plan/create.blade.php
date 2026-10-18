@@ -117,11 +117,11 @@
                         <div class="grid gap-5 sm:grid-cols-2">
                             <div>
                                 <label class="label" for="name">{{ __('site.plan.name') }}</label>
-                                <input id="name" name="name" value="{{ old('name') }}" class="field">
+                                <input id="name" name="name" value="{{ old('name', auth()->user()?->name) }}" class="field">
                             </div>
                             <div>
                                 <label class="label" for="email">Email</label>
-                                <input id="email" name="email" type="email" value="{{ old('email') }}" class="field">
+                                <input id="email" name="email" type="email" value="{{ old('email', auth()->user()?->email) }}" class="field">
                             </div>
                         </div>
                     </div>

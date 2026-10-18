@@ -59,6 +59,17 @@ trait HasImage
         return $fileObject;
     }
 
+    /**
+     * A fresh AI dish whose photo is still queued (GenerateDishImage), as opposed to a dish with no photo at all.
+     */
+    public function imagePending(): bool
+    {
+        return ($this->source ?? null) === 'ai'
+            && ! $this->image && ! $this->imageObject
+            && $this->created_at?->gt(now()->subMinutes(30))
+            && resolve(\App\Services\Ai\NutritionAi::class)->imagesEnabled();
+    }
+
     public function imageUrl(string $preset = 'md'): ?string
     {
         if ($file = $this->imageFile($preset)) {
